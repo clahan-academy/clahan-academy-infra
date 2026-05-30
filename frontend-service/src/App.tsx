@@ -1959,10 +1959,10 @@ export default function App() {
                   {currentUser.profilePhotoUrl ? (
                     <img src={currentUser.profilePhotoUrl} alt="Avatar" className="h-full w-full object-cover" />
                   ) : (
-                    currentUser.fullName.charAt(0)
+                    (currentUser.fullName || currentUser.full_name || 'Student').charAt(0)
                   )}
                 </div>
-                <h3 className="font-extrabold text-lg">{currentUser.fullName}</h3>
+                <h3 className="font-extrabold text-lg">{currentUser.fullName || currentUser.full_name || 'Student'}</h3>
                 <p className="text-xs font-mono text-muted-foreground mt-1">{currentUser.rollNumber || 'No Roll'}</p>
                 <div className="border-t border-slate-200/40 dark:border-slate-800/40 pt-4 mt-4 space-y-2 text-left text-sm text-slate-700 dark:text-slate-300">
                   <div className="flex justify-between"><span className="font-semibold">College:</span><span className="truncate max-w-[120px] text-xs" title={currentUser.college_name}>{currentUser.college_name || 'N/A'}</span></div>
@@ -2440,10 +2440,10 @@ export default function App() {
                           {adminStudents.map(student => (
                             <tr key={student.id} className="border-b hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
                               <td className="py-3.5 px-2">
-                                <div className="font-bold">{student.fullName}</div>
+                                <div className="font-bold">{student.fullName || student.full_name || 'N/A'}</div>
                                 <div className="text-[10px] text-muted-foreground mt-0.5">{student.email}</div>
                               </td>
-                              <td>{student.rollNumber}</td>
+                              <td>{student.rollNumber || student.roll_number || 'N/A'}</td>
                               <td>
                                 <div className="truncate max-w-[120px]" title={student.college_name}>{student.college_name}</div>
                                 <div className="text-[10px] text-muted-foreground mt-0.5">{student.department_name}</div>
