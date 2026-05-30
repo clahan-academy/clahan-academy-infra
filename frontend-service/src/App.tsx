@@ -11,6 +11,7 @@ interface College { id: string; name: string; }
 interface Department { id: string; college_id: string; name: string; }
 interface UserProfile {
   id: string; email: string; role?: 'admin' | 'student'; fullName: string; rollNumber?: string;
+  full_name?: string; roll_number?: string;
   collegeId?: string; departmentId?: string; year?: string; phone?: string;
   githubProfile?: string; linkedinProfile?: string; profilePhotoUrl?: string;
   college_name?: string; department_name?: string; status?: string;
