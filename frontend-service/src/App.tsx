@@ -14,6 +14,7 @@ interface UserProfile {
   collegeId?: string; departmentId?: string; year?: string; phone?: string;
   githubProfile?: string; linkedinProfile?: string; profilePhotoUrl?: string;
   college_name?: string; department_name?: string; status?: string;
+  email_verified?: boolean;
 }
 interface Exam {
   id: string; name: string; description: string; exam_type: 'mcq' | 'coding' | 'both';
