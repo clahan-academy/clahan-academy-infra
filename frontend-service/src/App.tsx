@@ -10,7 +10,7 @@ import { io, Socket } from 'socket.io-client';
 interface College { id: string; name: string; }
 interface Department { id: string; college_id: string; name: string; }
 interface UserProfile {
-  id: string; email: string; role: 'admin' | 'student'; fullName: string; rollNumber?: string;
+  id: string; email: string; role?: 'admin' | 'student'; fullName: string; rollNumber?: string;
   collegeId?: string; departmentId?: string; year?: string; phone?: string;
   githubProfile?: string; linkedinProfile?: string; profilePhotoUrl?: string;
   college_name?: string; department_name?: string; status?: string;
@@ -497,9 +497,9 @@ export default function App() {
       });
       
       setAdminStudents([
-        { id: 'std-1', email: 'john.doe@college.edu', fullName: 'John Doe', rollNumber: 'CSE101', status: 'active', college_name: 'ABC Engineering College', department_name: 'CSE', year: '3rd Year', email_verified: true },
-        { id: 'std-2', email: 'jane.smith@college.edu', fullName: 'Jane Smith', rollNumber: 'ECE203', status: 'active', college_name: 'ABC Engineering College', department_name: 'ECE', year: '4th Year', email_verified: true },
-        { id: 'std-3', email: 'bobby.miller@college.edu', fullName: 'Bobby Miller', rollNumber: 'AIDS04', status: 'pending', college_name: 'XYZ Institute of Technology', department_name: 'AIDS', year: '2nd Year', email_verified: false }
+        { id: 'std-1', email: 'john.doe@college.edu', role: 'student', fullName: 'John Doe', rollNumber: 'CSE101', status: 'active', college_name: 'ABC Engineering College', department_name: 'CSE', year: '3rd Year', email_verified: true },
+        { id: 'std-2', email: 'jane.smith@college.edu', role: 'student', fullName: 'Jane Smith', rollNumber: 'ECE203', status: 'active', college_name: 'ABC Engineering College', department_name: 'ECE', year: '4th Year', email_verified: true },
+        { id: 'std-3', email: 'bobby.miller@college.edu', role: 'student', fullName: 'Bobby Miller', rollNumber: 'AIDS04', status: 'pending', college_name: 'XYZ Institute of Technology', department_name: 'AIDS', year: '2nd Year', email_verified: false }
       ]);
 
       setAdminExams([
@@ -576,6 +576,7 @@ export default function App() {
       const mockS: UserProfile = {
         id: `std-${Date.now()}`,
         email: studentData.email,
+        role: 'student',
         fullName: studentData.fullName,
         rollNumber: studentData.rollNumber,
         status: 'active',
@@ -619,6 +620,7 @@ export default function App() {
           parsed.push({
             id: `std-csv-${index}-${Date.now()}`,
             email: parts[1],
+            role: 'student',
             fullName: parts[0],
             rollNumber: parts[3],
             status: 'active',
