@@ -1,0 +1,184 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
+const helmet_1 = __importDefault(require("helmet"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const pg_1 = require("pg");
+pg_1.types.setTypeParser(1114, (str) => new Date(str.replace(' ', 'T') + 'Z'));
+const jwt = __importStar(require("jsonwebtoken"));
+const app = (0, express_1.default)();
+const PORT = process.env.PORT || 4003;
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_access_token_key';
+// Database Pool
+const pool = new pg_1.Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/clahan_academy?sslmode=disable',
+});
+const query = (text, params) => pool.query(text, params);
+// Security Middlewares
+app.use((0, helmet_1.default)());
+app.use((0, cors_1.default)());
+app.use(express_1.default.json());
+const limiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+});
+app.use(limiter);
+function authenticateStudent(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token)
+        return res.status(401).json({ error: 'Auth token required' });
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+        if (err || decoded.role !== 'student') {
+            return res.status(403).json({ error: 'Requires student role access' });
+        }
+        req.user = decoded;
+        next();
+    });
+}
+// Health Check
+app.get('/health', (req, res) => {
+    res.json({ status: 'healthy', service: 'student-service' });
+});
+// Profile Management
+app.get('/api/student/profile', authenticateStudent, async (req, res) => {
+    try {
+        const result = await query(`SELECT u.id, u.email, u.full_name, u.phone, u.roll_number, u.year, u.status,
+              u.github_profile, u.linkedin_profile, u.profile_photo_url, u.email_verified, u.created_at,
+              c.name as college_name, d.name as department_name
+       FROM users u
+       LEFT JOIN colleges c ON u.college_id = c.id
+       LEFT JOIN departments d ON u.department_id = d.id
+       WHERE u.id = $1`, [req.user.id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Student profile not found' });
+        }
+        res.json(result.rows[0]);
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.put('/api/student/profile', authenticateStudent, async (req, res) => {
+    try {
+        const { phone, githubProfile, linkedinProfile, profilePhotoUrl } = req.body;
+        const result = await query(`UPDATE users
+       SET phone = COALESCE($1, phone),
+           github_profile = COALESCE($2, github_profile),
+           linkedin_profile = COALESCE($3, linkedin_profile),
+           profile_photo_url = COALESCE($4, profile_photo_url)
+       WHERE id = $5 RETURNING *`, [phone || null, githubProfile || null, linkedinProfile || null, profilePhotoUrl || null, req.user.id]);
+        res.json({ message: 'Profile updated successfully', profile: result.rows[0] });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// Student Dashboard Summary
+app.get('/api/student/dashboard/summary', authenticateStudent, async (req, res) => {
+    try {
+        const studentId = req.user.id;
+        const collegeId = req.user.college_id;
+        const departmentId = req.user.department_id;
+        const year = req.user.year;
+        // Upcoming Exams (exams matched to college, dept, year and schedule date is future)
+        const upcoming = await query(`SELECT e.*, c.name as college_name, d.name as department_name 
+       FROM exams e
+       LEFT JOIN colleges c ON e.college_id = c.id
+       LEFT JOIN departments d ON e.department_id = d.id
+       WHERE e.college_id = $1 AND e.department_id = $2 AND e.year = $3
+         AND e.is_published = TRUE AND e.schedule_date > CURRENT_TIMESTAMP
+       ORDER BY e.schedule_date ASC`, [collegeId, departmentId, year]);
+        // Active Exams (scheduled in the past/present, still open, or simply published with allowed attempts left)
+        // We fetch all eligible published exams, and check the attempts the student has made.
+        const active = await query(`SELECT e.*, 
+              (SELECT COUNT(*) FROM exam_attempts ea WHERE ea.exam_id = e.id AND ea.student_id = $4) as attempts_made
+       FROM exams e
+       WHERE e.college_id = $1 AND e.department_id = $2 AND e.year = $3
+         AND e.is_published = TRUE 
+         AND e.schedule_date <= CURRENT_TIMESTAMP
+         AND CURRENT_TIMESTAMP <= e.schedule_date + (COALESCE(e.window_open_minutes, 10) * INTERVAL '1 minute')
+       ORDER BY e.schedule_date DESC`, [collegeId, departmentId, year, studentId]);
+        // Filter active exams where attempts_made < allowed_attempts
+        const activeExams = active.rows.filter(row => parseInt(row.attempts_made) < parseInt(row.allowed_attempts));
+        // Completed & Terminated Exams & Results
+        const completed = await query(`SELECT ea.*, e.name as exam_name, e.exam_type, e.cutoff_percentage, e.duration_minutes
+       FROM exam_attempts ea
+       JOIN exams e ON ea.exam_id = e.id
+       WHERE ea.student_id = $1 AND ea.status IN ('completed', 'terminated')
+       ORDER BY ea.created_at DESC`, [studentId]);
+        res.json({
+            upcomingExams: upcoming.rows,
+            activeExams: activeExams,
+            completedExams: completed.rows,
+        });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// Notifications
+app.get('/api/student/notifications', authenticateStudent, async (req, res) => {
+    try {
+        // Return standard notifications (could be stored in PostgreSQL or returned dynamically)
+        // For Clahan Academy V2, we query standard notifications for the student's college/department.
+        const collegeId = req.user.college_id;
+        const departmentId = req.user.department_id;
+        const year = req.user.year;
+        // Let's dynamically generate a list of relevant in-app announcements
+        const publishedExams = await query(`SELECT id, name, schedule_date FROM exams 
+       WHERE college_id = $1 AND department_id = $2 AND year = $3 AND is_published = TRUE
+       ORDER BY schedule_date DESC LIMIT 10`, [collegeId, departmentId, year]);
+        const notifications = publishedExams.rows.map(exam => ({
+            id: exam.id,
+            title: 'New Exam Scheduled',
+            message: `Exam "${exam.name}" has been published and scheduled for ${new Date(exam.schedule_date).toLocaleString()}.`,
+            createdAt: exam.schedule_date,
+            type: 'exam_published'
+        }));
+        res.json(notifications);
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.listen(PORT, () => {
+    console.log(`Student Service listening on port ${PORT}`);
+});

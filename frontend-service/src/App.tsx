@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   BookOpen, Code, Shield, Video, Bell, Settings, Award, Users, CheckCircle, AlertTriangle, 
   Trash2, Copy, Send, Download, Upload, Plus, Play, Check, Moon, Sun, ArrowRight, User, 
-  LogOut, RefreshCw, Layers, Cpu, Laptop, Terminal, Mail, Phone, MapPin, Eye, EyeOff, Lock
+  LogOut, RefreshCw, Layers, Cpu, Laptop, Terminal, Mail, Phone, MapPin, Eye, EyeOff, Lock,
+  Maximize2, ShieldAlert, X
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
+import * as XLSX from 'xlsx';
 
 // Core Types
 interface College { id: string; name: string; }
@@ -53,6 +55,7 @@ export default function App() {
 
   // App Routing
   const [currentPage, setCurrentPage] = useState<'landing' | 'login' | 'register' | 'forgot-pw' | 'reset-pw' | 'student-dash' | 'admin-dash' | 'exam-env' | 'result-view' | 'questions-editor'>('landing');
+  const [isExamFullscreen, setIsExamFullscreen] = useState(true);
   
   // Auth state
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
@@ -147,6 +150,7 @@ export default function App() {
   const [mcqCsvInput, setMcqCsvInput] = useState('');
 
   // Manual Coding Question Configuration
+  const [isCodingModalOpen, setIsCodingModalOpen] = useState(false);
   const [codingForm, setCodingForm] = useState({
     title: '', description: '', difficulty: 'medium', marks: 10, language: 'Python',
     starterCode: 'def solve():\n    # Write your code here\n    pass', timeLimit: 2000, memoryLimit: 512000
@@ -194,6 +198,37 @@ export default function App() {
       videoRef.current.srcObject = cameraStream;
     }
   }, [cameraStream, validationStep]);
+
+  useEffect(() => {
+    if (currentPage !== 'exam-env') {
+      setIsExamFullscreen(true);
+      return;
+    }
+
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!document.fullscreenElement;
+      setIsExamFullscreen(isCurrentlyFullscreen);
+
+      if (!isCurrentlyFullscreen) {
+        setProctorLogs(p => [`[Violation] Fullscreen mode exited! (${new Date().toLocaleTimeString()})`, ...p]);
+        
+        if (socketRef.current) {
+          socketRef.current.emit('proctor-event', {
+            eventType: 'FULLSCREEN_EXIT',
+            details: 'Candidate exited fullscreen mode',
+            severity: 'warning'
+          });
+        }
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    setIsExamFullscreen(!!document.fullscreenElement);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [currentPage]);
   
   // Toast notifications
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'warning' | 'info' }>>([]);
@@ -279,8 +314,18 @@ export default function App() {
       });
       if (res.ok) {
         const user = await res.json();
-        setCurrentUser(user);
-        if (user.role === 'admin') {
+        const mappedUser = {
+          ...user,
+          fullName: user.full_name || user.fullName,
+          rollNumber: user.roll_number || user.rollNumber,
+          profilePhotoUrl: user.profile_photo_url || user.profilePhotoUrl,
+          githubProfile: user.github_profile || user.githubProfile,
+          linkedinProfile: user.linkedin_profile || user.linkedinProfile,
+          collegeId: user.college_id || user.collegeId,
+          departmentId: user.department_id || user.departmentId,
+        };
+        setCurrentUser(mappedUser);
+        if (mappedUser.role === 'admin') {
           setCurrentPage('admin-dash');
           loadAdminDashboard();
         } else {
@@ -632,21 +677,44 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.csv')) {
-      showToast('Please select a valid CSV file. For Excel files, choose "Save As CSV" first.', 'error');
+    const name = file.name.toLowerCase();
+    if (!name.endsWith('.csv') && !name.endsWith('.xlsx') && !name.endsWith('.xls')) {
+      showToast('Please select a valid CSV or Excel (.xlsx, .xls) file.', 'error');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (text) {
-        setStudentCsvInput(text);
-        const rowsCount = text.split('\n').filter(line => line.trim()).length - 1;
-        showToast(`Loaded ${rowsCount > 0 ? rowsCount : 0} student records. Click "Upload" to finalize.`, 'success');
-      }
-    };
-    reader.readAsText(file);
+    if (name.endsWith('.csv')) {
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (text) {
+          setStudentCsvInput(text);
+          const rowsCount = text.split('\n').filter(line => line.trim()).length - 1;
+          showToast(`Loaded ${rowsCount > 0 ? rowsCount : 0} student records. Click "Upload" to finalize.`, 'success');
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const csv = XLSX.utils.sheet_to_csv(worksheet);
+          if (csv) {
+            setStudentCsvInput(csv);
+            const rowsCount = csv.split('\n').filter(line => line.trim()).length - 1;
+            showToast(`Loaded ${rowsCount > 0 ? rowsCount : 0} student records from Excel. Click "Upload" to finalize.`, 'success');
+          } else {
+            showToast('The Excel file is empty or could not be read.', 'error');
+          }
+        } catch (err: any) {
+          showToast(`Error parsing Excel file: ${err.message}`, 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
   };
 
   const importStudentsCsv = async (e: React.FormEvent) => {
@@ -877,13 +945,40 @@ export default function App() {
   const handleMcqFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const name = file.name.toLowerCase();
+    if (!name.endsWith('.csv') && !name.endsWith('.xlsx') && !name.endsWith('.xls')) {
+      showToast('Please select a valid CSV or Excel (.xlsx, .xls) file.', 'error');
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setMcqCsvInput(text);
-      showToast(`Loaded "${file.name}"! Click "Import MCQ CSV" to upload.`, 'success');
-    };
-    reader.readAsText(file);
+    if (name.endsWith('.csv')) {
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        setMcqCsvInput(text);
+        showToast(`Loaded "${file.name}"! Click "Import MCQ CSV" to upload.`, 'success');
+      };
+      reader.readAsText(file);
+    } else {
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const csv = XLSX.utils.sheet_to_csv(worksheet);
+          if (csv) {
+            setMcqCsvInput(csv);
+            showToast(`Loaded "${file.name}" from Excel! Click "Import MCQ CSV" to upload.`, 'success');
+          } else {
+            showToast('The Excel file is empty or could not be read.', 'error');
+          }
+        } catch (err: any) {
+          showToast(`Error parsing Excel file: ${err.message}`, 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
   };
 
   const loadAdminExamResults = async (examId: string, examName: string) => {
@@ -1166,13 +1261,26 @@ export default function App() {
     }
   };
 
-  const enterFullscreen = () => {
-    const el = document.documentElement;
-    if (el.requestFullscreen) {
-      el.requestFullscreen().then(() => setFullscreenCheck(true)).catch(() => setFullscreenCheck(true));
+  const requestFullscreenHelper = async () => {
+    const el = document.documentElement as any;
+    const requestMethod = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (requestMethod) {
+      try {
+        await requestMethod.call(el);
+        setIsExamFullscreen(true);
+        return true;
+      } catch (err) {
+        console.warn("Fullscreen request rejected:", err);
+        return false;
+      }
     } else {
-      setFullscreenCheck(true);
+      setIsExamFullscreen(true);
+      return true;
     }
+  };
+
+  const enterFullscreen = () => {
+    requestFullscreenHelper().then(() => setFullscreenCheck(true));
   };
 
   const startExamAttempt = async () => {
@@ -1227,6 +1335,9 @@ export default function App() {
         setMcqAnswers(mcqAns);
 
         const codSol: Record<string, { code: string; language: string }> = {};
+        data.codingQuestions.forEach((q: any) => {
+          codSol[q.id] = { code: q.starter_code || '', language: q.language || 'Python' };
+        });
         data.responses.codings.forEach((r: any) => {
           codSol[r.question_id] = { code: r.code, language: r.language };
         });
@@ -1263,6 +1374,7 @@ export default function App() {
       mockCodings.forEach(c => {
         defaultSols[c.id] = { code: c.starter_code, language: c.language };
       });
+      setCodingSolutions(defaultSols);
     }
 
     if (currentExam?.exam_type === 'coding') {
@@ -1333,12 +1445,20 @@ export default function App() {
   };
 
   const handleVisibilityChange = () => {
+    if (currentPage !== 'exam-env') {
+      cleanupProctoring();
+      return;
+    }
     if (document.visibilityState === 'hidden') {
       handleTabSwitch();
     }
   };
 
   const handleTabSwitch = () => {
+    if (currentPage !== 'exam-env') {
+      cleanupProctoring();
+      return;
+    }
     setTabWarnings(prev => {
       const updated = prev + 1;
       const logMsg = `Tab Switch Violation #${updated} detected.`;
@@ -1482,7 +1602,17 @@ export default function App() {
   };
 
   const submitEntireExam = async (isAuto = false) => {
-    if (!isAuto && !confirm('Are you sure you want to finish and submit your exam?')) return;
+    if (!isAuto) {
+      window.removeEventListener('blur', handleTabSwitch);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+    if (!isAuto && !confirm('Are you sure you want to finish and submit your exam?')) {
+      if (currentPage === 'exam-env') {
+        window.addEventListener('blur', handleTabSwitch);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+      }
+      return;
+    }
     cleanupProctoring();
     const timeTaken = ((currentExam?.duration_minutes || 60) * 60) - timeLeft;
 
@@ -1720,6 +1850,34 @@ export default function App() {
 
   return (
     <div className="min-h-screen transition-colors duration-200">
+      
+      {/* Fullscreen Proctoring Enforcer Overlay */}
+      {!isExamFullscreen && currentPage === 'exam-env' && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+          <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-rose-500/30 rounded-3xl p-8 space-y-6 shadow-2xl">
+            <div className="h-16 w-16 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto">
+              <Maximize2 className="h-8 w-8 animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Fullscreen Enforced</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                For security and integrity reasons, this exam must be taken in fullscreen mode. Any attempt to exit fullscreen is logged as a violation.
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                const success = await requestFullscreenHelper();
+                if (!success) {
+                  showToast('Failed to enter fullscreen. Please make sure you allow fullscreen permissions in your browser.', 'error');
+                }
+              }}
+              className="w-full py-3.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-2xl shadow-lg transition-all text-xs uppercase tracking-wider"
+            >
+              Re-enter Fullscreen Mode
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Toast Alert Engine */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
@@ -2111,7 +2269,7 @@ export default function App() {
                         setRegForm({...regForm, collegeId: e.target.value});
                         fetchDepartments(e.target.value);
                       }} 
-                      className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-transparent"
+                      className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                       required
                     >
                       <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select College</option>
@@ -2123,7 +2281,7 @@ export default function App() {
                     <select 
                       value={regForm.departmentId} 
                       onChange={e => setRegForm({...regForm, departmentId: e.target.value})} 
-                      className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-transparent text-slate-900 dark:text-white"
+                      className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                       required
                       disabled={!regForm.collegeId}
                     >
@@ -2133,7 +2291,7 @@ export default function App() {
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground">Year *</label>
-                    <select value={regForm.year} onChange={e => setRegForm({...regForm, year: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-transparent text-slate-900 dark:text-white" required>
+                    <select value={regForm.year} onChange={e => setRegForm({...regForm, year: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" required>
                       <option value="1st Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">1st Year</option>
                       <option value="2nd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">2nd Year</option>
                       <option value="3rd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">3rd Year</option>
@@ -2295,12 +2453,14 @@ export default function App() {
                     (currentUser.fullName || currentUser.full_name || 'Student').charAt(0)
                   )}
                 </div>
-                <h3 className="font-extrabold text-lg">{currentUser.fullName || currentUser.full_name || 'Student'}</h3>
-                <p className="text-xs font-mono text-muted-foreground mt-1">{currentUser.rollNumber || 'No Roll'}</p>
-                <div className="border-t border-slate-200/40 dark:border-slate-800/40 pt-4 mt-4 space-y-2 text-left text-sm text-slate-700 dark:text-slate-300">
-                  <div className="flex justify-between"><span className="font-semibold">College:</span><span className="truncate max-w-[120px] text-xs" title={currentUser.college_name}>{currentUser.college_name || 'N/A'}</span></div>
-                  <div className="flex justify-between"><span className="font-semibold">Dept:</span><span>{currentUser.department_name || 'N/A'}</span></div>
-                  <div className="flex justify-between"><span className="font-semibold">Year:</span><span>{currentUser.year || 'N/A'}</span></div>
+                 <h3 className="font-extrabold text-lg text-slate-800 dark:text-slate-100">{currentUser.fullName || currentUser.full_name || 'Student'}</h3>
+                <p className="text-xs font-mono text-indigo-650 dark:text-indigo-400 mt-1 font-bold">
+                  Roll No: {currentUser.rollNumber || currentUser.roll_number || 'N/A'}
+                </p>
+                <div className="border-t border-slate-200/40 dark:border-slate-800/40 pt-4 mt-4 space-y-2 text-left text-sm text-slate-700 dark:text-slate-355">
+                  <div className="flex justify-between"><span className="font-semibold text-slate-500">College:</span><span className="truncate max-w-[130px] text-xs font-bold" title={currentUser.college_name}>{currentUser.college_name || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="font-semibold text-slate-500">Dept:</span><span className="font-bold">{currentUser.department_name || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="font-semibold text-slate-500">Year:</span><span className="font-bold">{currentUser.year || 'N/A'}</span></div>
                 </div>
               </div>
 
@@ -2417,8 +2577,14 @@ export default function App() {
                         <div key={att.id} className="p-6 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-white dark:bg-slate-950 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                           <div>
                             <div className="flex items-center gap-2 mb-2">
-                              <span className={`px-2.5 py-0.5 rounded text-xs font-bold ${att.passed ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
-                                {att.passed ? 'PASSED' : 'FAILED'}
+                              <span className={`px-2.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${
+                                att.status === 'terminated' 
+                                  ? 'bg-rose-500/25 text-rose-600 dark:text-rose-400 border border-rose-500/30' 
+                                  : att.passed 
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                              }`}>
+                                {att.status === 'terminated' ? 'TERMINATED' : att.passed ? 'PASSED' : 'FAILED'}
                               </span>
                               <span className="text-xs text-muted-foreground">Cutoff: {att.cutoff_percentage || 50}%</span>
                             </div>
@@ -2426,8 +2592,12 @@ export default function App() {
                             <p className="text-xs text-muted-foreground mt-1">Submitted on: {new Date(att.created_at).toLocaleString()}</p>
                             
                             {att.feedback && (
-                              <div className="mt-3 bg-indigo-500/5 border-l-2 border-indigo-500 p-2.5 rounded-r-lg max-w-xl text-xs text-indigo-700 dark:text-indigo-300 font-semibold italic">
-                                "{att.feedback}"
+                              <div className={`mt-3 border-l-2 p-2.5 rounded-r-lg max-w-xl text-xs font-semibold ${
+                                att.status === 'terminated'
+                                  ? 'bg-rose-500/5 border-rose-500 text-rose-705 dark:text-rose-350'
+                                  : 'bg-indigo-500/5 border-indigo-500 text-indigo-700 dark:text-indigo-300 italic'
+                              }`}>
+                                {att.status === 'terminated' ? att.feedback : `"${att.feedback}"`}
                               </div>
                             )}
                           </div>
@@ -2699,15 +2869,15 @@ export default function App() {
                           <input type="text" name="rollNumber" placeholder="Roll Number" className="p-3 border rounded-xl text-xs bg-transparent" required />
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                          <select name="collegeId" onChange={e => fetchDepartments(e.target.value)} className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                          <select name="collegeId" onChange={e => fetchDepartments(e.target.value)} className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" required>
                             <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">College</option>
                             {adminColleges.map(c => <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{c.name}</option>)}
                           </select>
-                          <select name="departmentId" className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                          <select name="departmentId" className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" required>
                             <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Dept</option>
                             {departments.map(d => <option key={d.id} value={d.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{d.name}</option>)}
                           </select>
-                          <select name="year" className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                          <select name="year" className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" required>
                             <option value="1st Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">1st Year</option>
                             <option value="2nd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">2nd Year</option>
                             <option value="3rd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">3rd Year</option>
@@ -2747,17 +2917,17 @@ export default function App() {
                         <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center hover:border-indigo-500 dark:hover:border-indigo-500 transition-all group relative cursor-pointer">
                           <input
                             type="file"
-                            accept=".csv"
+                            accept=".csv,.xlsx,.xls"
                             onChange={handleCsvFileUpload}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                           />
                           <div className="flex flex-col items-center justify-center gap-2">
                             <Upload className="h-6 w-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
                             <p className="text-xs font-bold text-slate-700 dark:text-slate-350">
-                              Drag & drop or Click to upload CSV File
+                              Drag & drop or Click to upload CSV / Excel File
                             </p>
                             <p className="text-[10px] text-muted-foreground">
-                              Accepts .csv format. Save your Excel sheets as CSV to upload.
+                              Accepts .csv, .xlsx, and .xls formats.
                             </p>
                           </div>
                         </div>
@@ -2860,7 +3030,7 @@ export default function App() {
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">Exam Type</label>
-                           <select value={examForm.examType} onChange={e => setExamForm({...examForm, examType: e.target.value as any})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required>
+                           <select value={examForm.examType} onChange={e => setExamForm({...examForm, examType: e.target.value as any})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 mt-1" required>
                             <option value="mcq" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">MCQ Only</option>
                             <option value="coding" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Coding Only</option>
                             <option value="both" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">MCQ + Coding</option>
@@ -2879,7 +3049,7 @@ export default function App() {
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">Allowed Attempts</label>
-                          <select value={examForm.allowedAttempts} onChange={e => setExamForm({...examForm, allowedAttempts: parseInt(e.target.value) || 1})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1">
+                          <select value={examForm.allowedAttempts} onChange={e => setExamForm({...examForm, allowedAttempts: parseInt(e.target.value) || 1})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 mt-1">
                             <option value="1" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">1 Attempt</option>
                             <option value="2" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">2 Attempts</option>
                             <option value="3" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">3 Attempts</option>
@@ -2891,21 +3061,21 @@ export default function App() {
                       <div className="grid grid-cols-3 gap-3">
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">College Eligibility</label>
-                          <select value={examForm.collegeId} onChange={e => { setExamForm({...examForm, collegeId: e.target.value}); fetchDepartments(e.target.value); }} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required>
+                          <select value={examForm.collegeId} onChange={e => { setExamForm({...examForm, collegeId: e.target.value}); fetchDepartments(e.target.value); }} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 mt-1" required>
                             <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select College</option>
                             {adminColleges.map(c => <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{c.name}</option>)}
                           </select>
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">Department Eligibility</label>
-                          <select value={examForm.departmentId} onChange={e => setExamForm({...examForm, departmentId: e.target.value})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required disabled={!examForm.collegeId}>
+                          <select value={examForm.departmentId} onChange={e => setExamForm({...examForm, departmentId: e.target.value})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 mt-1" required disabled={!examForm.collegeId}>
                             <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select Dept</option>
                             {departments.map(d => <option key={d.id} value={d.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{d.name}</option>)}
                           </select>
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">Year Eligibility</label>
-                          <select value={examForm.year} onChange={e => setExamForm({...examForm, year: e.target.value})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required>
+                          <select value={examForm.year} onChange={e => setExamForm({...examForm, year: e.target.value})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 mt-1" required>
                             <option value="1st Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">1st Year</option>
                             <option value="2nd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">2nd Year</option>
                             <option value="3rd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">3rd Year</option>
@@ -2987,8 +3157,14 @@ export default function App() {
                                   <td className="py-3.5 px-2 text-center font-bold">{r.score} pts</td>
                                   <td className="py-3.5 px-2 text-center font-black text-indigo-600 dark:text-indigo-400">{r.percentage}%</td>
                                   <td className="py-3.5 px-4 text-center">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${r.passed ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
-                                      {r.passed ? 'Passed' : 'Failed'}
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                      r.status === 'terminated'
+                                        ? 'bg-rose-500/25 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                                        : r.passed 
+                                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                    }`}>
+                                      {r.status === 'terminated' ? 'Terminated' : r.passed ? 'Passed' : 'Failed'}
                                     </span>
                                   </td>
                                 </tr>
@@ -3219,10 +3395,10 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <label className="text-xs font-bold text-muted-foreground">Correct Option</label>
-                        <select value={mcqForm.correctAnswer} onChange={e => setMcqForm({...mcqForm, correctAnswer: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                        <select value={mcqForm.correctAnswer} onChange={e => setMcqForm({...mcqForm, correctAnswer: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" required>
                           <option value="A" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Option A</option>
                           <option value="B" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Option B</option>
                           <option value="C" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Option C</option>
@@ -3235,7 +3411,7 @@ export default function App() {
                       </div>
                       <div>
                         <label className="text-xs font-bold text-muted-foreground">Difficulty Level</label>
-                        <select value={mcqForm.difficulty} onChange={e => setMcqForm({...mcqForm, difficulty: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                        <select value={mcqForm.difficulty} onChange={e => setMcqForm({...mcqForm, difficulty: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" required>
                           <option value="easy" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Easy</option>
                           <option value="medium" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Medium</option>
                           <option value="hard" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Hard</option>
@@ -3266,11 +3442,11 @@ export default function App() {
                     <form onSubmit={importMcqCsv} className="space-y-4">
                       <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors relative cursor-pointer">
                         <label className="cursor-pointer block">
-                          <span className="text-sm text-indigo-600 dark:text-indigo-400 font-extrabold block">📂 Choose CSV File</span>
-                          <span className="text-xs text-muted-foreground block mt-1">Select a valid .csv template from your computer</span>
+                          <span className="text-sm text-indigo-600 dark:text-indigo-400 font-extrabold block">📂 Choose CSV / Excel File</span>
+                          <span className="text-xs text-muted-foreground block mt-1">Select a valid .csv, .xlsx, or .xls template</span>
                           <input
                             type="file"
-                            accept=".csv"
+                            accept=".csv,.xlsx,.xls"
                             onChange={handleMcqFileChange}
                             className="hidden"
                           />
@@ -3295,174 +3471,232 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white dark:bg-slate-950 p-6 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-md space-y-6">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Add Coding Challenge</h3>
-                    <p className="text-[11px] text-muted-foreground">Provide coding challenge details, default starter template code, and validation test cases.</p>
+                <div className="bg-white dark:bg-slate-950 p-8 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-md space-y-6 flex flex-col items-center text-center">
+                  <div className="h-16 w-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 mb-2">
+                    <Code className="h-8 w-8" />
                   </div>
+                  <div>
+                    <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">Coding Challenge Studio</h3>
+                    <p className="text-xs text-muted-foreground mt-2 max-w-md mx-auto leading-relaxed">
+                      Configure complex technical coding assessments. You can define test cases, target language templates, memory/time limits, and enable automated code grading.
+                    </p>
+                  </div>
+                  
+                  <button 
+                    type="button"
+                    onClick={() => setIsCodingModalOpen(true)}
+                    className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl text-xs transition-all shadow-md shadow-indigo-500/10 flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" /> Open Coding Studio
+                  </button>
 
-                  <form onSubmit={addCodingQuestion} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="w-full border-t border-slate-200/40 dark:border-slate-800/40 pt-6 text-left space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Quick Guide:</h4>
+                    <ul className="text-xs text-muted-foreground space-y-2 list-disc pl-4 leading-relaxed">
+                      <li>Use standard system inputs/outputs in your test cases.</li>
+                      <li>Define at least one visible test case for candidates to verify syntax.</li>
+                      <li>Use the starter template code editor to offer baseline code structures.</li>
+                      <li>Custom time limits are defined in milliseconds (default: 2000ms).</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {isCodingModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                  <div className="bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800/50 rounded-3xl w-full max-w-4xl shadow-2xl p-6 md:p-8 flex flex-col gap-6 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+                    <div className="flex justify-between items-start border-b border-slate-200/40 dark:border-slate-800/40 pb-4">
                       <div>
-                        <label className="text-xs font-bold text-muted-foreground">Challenge Title</label>
-                        <input 
-                          type="text" 
-                          value={codingForm.title} 
-                          onChange={e => setCodingForm({...codingForm, title: e.target.value})} 
-                          placeholder="Fibonacci Sequence Generator" 
-                          className="w-full p-3 mt-1 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" 
+                        <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                          <Code className="h-5 w-5 text-indigo-600" />
+                          Coding Challenge Studio
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-1">Configure challenge parameters, custom starter templates, and expected test outputs.</p>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setIsCodingModalOpen(false)}
+                        className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900 text-muted-foreground hover:text-foreground transition-all"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={async (e) => {
+                      await addCodingQuestion(e);
+                      setIsCodingModalOpen(false);
+                    }} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-muted-foreground">Challenge Title</label>
+                          <input 
+                            type="text" 
+                            value={codingForm.title} 
+                            onChange={e => setCodingForm({...codingForm, title: e.target.value})} 
+                            placeholder="Fibonacci Sequence Generator" 
+                            className="w-full p-3 mt-1 border rounded-xl text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-indigo-500" 
+                            required 
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-muted-foreground">Target Language</label>
+                          <select 
+                            value={codingForm.language} 
+                            onChange={e => {
+                              const lang = e.target.value;
+                              const starterTemplates: Record<string, string> = {
+                                'Python': 'def solve(input_val):\n    # Write your code here\n    pass',
+                                'Java': 'import java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your code here\n    }\n}',
+                                'C++': '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your code here\n    return 0;\n}',
+                                'JavaScript': 'function solve(inputVal) {\n    // Write your code here\n    return null;\n}'
+                              };
+                              setCodingForm({
+                                ...codingForm,
+                                language: lang,
+                                starterCode: starterTemplates[lang] || ''
+                              });
+                            }} 
+                            className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white" 
+                            required
+                          >
+                            <option value="Python">Python</option>
+                            <option value="Java">Java</option>
+                            <option value="C++">C++</option>
+                            <option value="JavaScript">JavaScript</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-muted-foreground">Marks</label>
+                          <input type="number" value={codingForm.marks} onChange={e => setCodingForm({...codingForm, marks: parseInt(e.target.value) || 10})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white" required />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-muted-foreground">Time Limit (ms)</label>
+                          <input type="number" value={codingForm.timeLimit} onChange={e => setCodingForm({...codingForm, timeLimit: parseInt(e.target.value) || 2000})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white" required />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-muted-foreground">Memory Limit (KB)</label>
+                          <input type="number" value={codingForm.memoryLimit} onChange={e => setCodingForm({...codingForm, memoryLimit: parseInt(e.target.value) || 512000})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white" required />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-muted-foreground">Challenge Description & Examples</label>
+                        <textarea 
+                          value={codingForm.description} 
+                          onChange={e => setCodingForm({...codingForm, description: e.target.value})} 
+                          placeholder="Write clear instructions for the student, detailing inputs, outputs, constraints, and test scenarios..." 
+                          rows={4} 
+                          className="w-full p-3.5 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-indigo-500" 
                           required 
                         />
                       </div>
-                      <div>
-                        <label className="text-xs font-bold text-muted-foreground">Target Language</label>
-                        <select 
-                          value={codingForm.language} 
-                          onChange={e => {
-                            const lang = e.target.value;
-                            const starterTemplates: Record<string, string> = {
-                              'Python': 'def solve(input_val):\n    # Write your code here\n    pass',
-                              'Java': 'import java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your code here\n    }\n}',
-                              'C++': '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your code here\n    return 0;\n}',
-                              'JavaScript': 'function solve(inputVal) {\n    // Write your code here\n    return null;\n}'
-                            };
-                            setCodingForm({
-                              ...codingForm,
-                              language: lang,
-                              starterCode: starterTemplates[lang] || ''
-                            });
-                          }} 
-                          className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" 
-                          required
-                        >
-                          <option value="Python" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Python</option>
-                          <option value="Java" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Java</option>
-                          <option value="C++" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">C++</option>
-                          <option value="JavaScript" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">JavaScript</option>
-                        </select>
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="text-xs font-bold text-muted-foreground">Marks</label>
-                        <input type="number" value={codingForm.marks} onChange={e => setCodingForm({...codingForm, marks: parseInt(e.target.value) || 10})} className="w-full p-3 mt-1 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-muted-foreground">Time Limit (ms)</label>
-                        <input type="number" value={codingForm.timeLimit} onChange={e => setCodingForm({...codingForm, timeLimit: parseInt(e.target.value) || 2000})} className="w-full p-3 mt-1 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-muted-foreground">Memory Limit (KB)</label>
-                        <input type="number" value={codingForm.memoryLimit} onChange={e => setCodingForm({...codingForm, memoryLimit: parseInt(e.target.value) || 512000})} className="w-full p-3 mt-1 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-muted-foreground">Challenge Description & Examples</label>
-                      <textarea 
-                        value={codingForm.description} 
-                        onChange={e => setCodingForm({...codingForm, description: e.target.value})} 
-                        placeholder="Write clear instructions for the student, detailing inputs, outputs, constraints, and test scenarios..." 
-                        rows={5} 
-                        className="w-full p-3.5 mt-1 border rounded-xl text-xs bg-transparent focus:outline-indigo-500 text-slate-900 dark:text-white" 
-                        required 
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-muted-foreground">Starter template code (Reflected automatically on changing language)</label>
-                      <textarea 
-                        value={codingForm.starterCode} 
-                        onChange={e => setCodingForm({...codingForm, starterCode: e.target.value})} 
-                        placeholder="Code shown to students at the beginning of the test..." 
-                        rows={6} 
-                        className="w-full p-3.5 mt-1 border rounded-xl text-xs bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 font-mono focus:outline-indigo-500" 
-                      />
-                    </div>
-                    
-                    {/* Test cases selection */}
-                    <div className="border-t border-slate-200/50 dark:border-slate-800/50 pt-4">
-                      <div className="flex justify-between items-center mb-3">
-                        <div>
-                          <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">Evaluation Test Cases</h4>
-                          <p className="text-[10px] text-muted-foreground">Minimum 1 testcase is required for automated evaluation.</p>
-                        </div>
-                        <button 
-                          type="button" 
-                          onClick={addTestCaseInput} 
-                          className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg flex items-center gap-1 transition-all"
-                        >
-                          <Plus className="h-3.5 w-3.5" /> Add Case
-                        </button>
+                        <label className="text-xs font-bold text-muted-foreground">Starter template code (Reflected automatically on changing language)</label>
+                        <textarea 
+                          value={codingForm.starterCode} 
+                          onChange={e => setCodingForm({...codingForm, starterCode: e.target.value})} 
+                          placeholder="Code shown to students at the beginning of the test..." 
+                          rows={5} 
+                          className="w-full p-3.5 mt-1 border rounded-xl text-xs bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 font-mono focus:outline-indigo-500" 
+                        />
                       </div>
                       
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                        {codingTestCases.map((tc, idx) => (
-                          <div key={idx} className="flex flex-col md:flex-row gap-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-slate-800/50 items-end">
-                            <div className="flex-1 w-full">
-                              <label className="text-[10px] font-bold text-muted-foreground block mb-1">Standard Input</label>
-                              <input 
-                                type="text" 
-                                placeholder="Input" 
-                                value={tc.input} 
-                                onChange={e => {
-                                  const updated = [...codingTestCases];
-                                  updated[idx].input = e.target.value;
-                                  setCodingTestCases(updated);
-                                }} 
-                                className="w-full p-2 border rounded-lg text-xs bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white" 
-                                required 
-                              />
-                            </div>
-                            <div className="flex-1 w-full">
-                              <label className="text-[10px] font-bold text-muted-foreground block mb-1">Expected Output</label>
-                              <input 
-                                type="text" 
-                                placeholder="Output" 
-                                value={tc.expected_output} 
-                                onChange={e => {
-                                  const updated = [...codingTestCases];
-                                  updated[idx].expected_output = e.target.value;
-                                  setCodingTestCases(updated);
-                                }} 
-                                className="w-full p-2 border rounded-lg text-xs bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white" 
-                                required 
-                              />
-                            </div>
-                            <div className="w-full md:w-32">
-                              <label className="text-[10px] font-bold text-muted-foreground block mb-1">Visibility</label>
-                              <select 
-                                value={tc.isHidden ? 'true' : 'false'} 
-                                onChange={e => {
-                                  const updated = [...codingTestCases];
-                                  updated[idx].isHidden = e.target.value === 'true';
-                                  setCodingTestCases(updated);
-                                }} 
-                                className="w-full p-2 border rounded-lg text-xs bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white"
-                              >
-                                <option value="false">Visible</option>
-                                <option value="true">Hidden</option>
-                              </select>
-                            </div>
-                            <button 
-                              type="button" 
-                              onClick={() => {
-                                setCodingTestCases(prev => prev.filter((_, i) => i !== idx));
-                              }}
-                              className="p-2.5 rounded-lg border border-rose-200 dark:border-rose-950 hover:bg-rose-500 hover:text-white text-rose-500 transition-all flex items-center justify-center shrink-0 w-full md:w-auto"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                      {/* Test cases selection */}
+                      <div className="border-t border-slate-200/50 dark:border-slate-800/50 pt-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <div>
+                            <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">Evaluation Test Cases</h4>
+                            <p className="text-[10px] text-muted-foreground">Minimum 1 testcase is required for automated evaluation.</p>
                           </div>
-                        ))}
+                          <button 
+                            type="button" 
+                            onClick={addTestCaseInput} 
+                            className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg flex items-center gap-1 transition-all"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add Case
+                          </button>
+                        </div>
+                        
+                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                          {codingTestCases.map((tc, idx) => (
+                            <div key={idx} className="flex flex-col md:flex-row gap-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-slate-800/50 items-end">
+                              <div className="flex-1 w-full">
+                                <label className="text-[10px] font-bold text-muted-foreground block mb-1">Standard Input</label>
+                                <input 
+                                  type="text" 
+                                  placeholder="Input" 
+                                  value={tc.input} 
+                                  onChange={e => {
+                                    const updated = [...codingTestCases];
+                                    updated[idx].input = e.target.value;
+                                    setCodingTestCases(updated);
+                                  }} 
+                                  className="w-full p-2 border rounded-lg text-xs bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white" 
+                                  required 
+                                />
+                              </div>
+                              <div className="flex-1 w-full">
+                                <label className="text-[10px] font-bold text-muted-foreground block mb-1">Expected Output</label>
+                                <input 
+                                  type="text" 
+                                  placeholder="Output" 
+                                  value={tc.expected_output} 
+                                  onChange={e => {
+                                    const updated = [...codingTestCases];
+                                    updated[idx].expected_output = e.target.value;
+                                    setCodingTestCases(updated);
+                                  }} 
+                                  className="w-full p-2 border rounded-lg text-xs bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white" 
+                                  required 
+                                />
+                              </div>
+                              <div className="w-full md:w-32">
+                                <label className="text-[10px] font-bold text-muted-foreground block mb-1">Visibility</label>
+                                <select 
+                                  value={tc.isHidden ? 'true' : 'false'} 
+                                  onChange={e => {
+                                    const updated = [...codingTestCases];
+                                    updated[idx].isHidden = e.target.value === 'true';
+                                    setCodingTestCases(updated);
+                                  }} 
+                                  className="w-full p-2 border border-slate-200 dark:border-slate-800 rounded-lg text-xs bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                >
+                                  <option value="false">Visible</option>
+                                  <option value="true">Hidden</option>
+                                </select>
+                              </div>
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  setCodingTestCases(prev => prev.filter((_, i) => i !== idx));
+                                }}
+                                className="p-2.5 rounded-lg border border-rose-200 dark:border-rose-950 hover:bg-rose-500 hover:text-white text-rose-500 transition-all flex items-center justify-center shrink-0 w-full md:w-auto"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
 
-                    <button type="submit" className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors flex justify-center items-center gap-2">
-                      <Plus className="h-4 w-4" /> Save Coding Question
-                    </button>
-                  </form>
+                      <div className="flex gap-3 justify-end border-t border-slate-200/45 dark:border-slate-800/45 pt-4 mt-6">
+                        <button 
+                          type="button"
+                          onClick={() => setIsCodingModalOpen(false)}
+                          className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all"
+                        >
+                          Cancel
+                        </button>
+                        <button type="submit" className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2">
+                          <Plus className="h-4 w-4" /> Save Coding Question
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               )}
             </div>
@@ -3533,6 +3767,29 @@ export default function App() {
                           <div className="font-bold text-slate-800 dark:text-slate-100 pr-6">{idx + 1}. {q.title} ({q.language})</div>
                           <div className="mt-2 text-[11px] text-muted-foreground whitespace-pre-wrap font-mono line-clamp-3 bg-white dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/40 dark:border-slate-800/40">{q.description}</div>
                           
+                          {(q as any).testCases && (q as any).testCases.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Evaluation Test Cases</span>
+                              <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
+                                {(q as any).testCases.map((tc: any, tcIdx: number) => (
+                                  <div key={tc.id || tcIdx} className="p-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200/30 dark:border-slate-800/30 text-[10px] flex items-center justify-between font-mono">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-slate-400">In:</span>
+                                      <span className="font-bold text-slate-800 dark:text-slate-200">{tc.input}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-slate-400">Out:</span>
+                                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{tc.expected_output || tc.expectedOutput}</span>
+                                    </div>
+                                    <span className={`px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wider ${tc.is_hidden || tc.isHidden ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'}`}>
+                                      {tc.is_hidden || tc.isHidden ? 'Hidden' : 'Visible'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
                           <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-slate-200/20 dark:border-slate-800/20">
                             <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold text-[9px]">{q.marks} Marks</span>
                             <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold text-[9px] capitalize">{q.difficulty}</span>
@@ -3540,11 +3797,11 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => {
-                                if (confirm('Are you sure you want to delete this coding question?')) {
-                                  setAdminSelectedExamCodings(prev => prev.filter(item => item.id !== q.id));
-                                  setAdminExams(prev => prev.map(ex => ex.id === selectedExamIdForQuestions ? { ...ex, coding_count: Math.max(0, (ex.coding_count || 1) - 1) } : ex));
-                                  showToast('Coding Question deleted (Simulated)');
-                                }
+                                  if (confirm('Are you sure you want to delete this coding question?')) {
+                                    setAdminSelectedExamCodings(prev => prev.filter(item => item.id !== q.id));
+                                    setAdminExams(prev => prev.map(ex => ex.id === selectedExamIdForQuestions ? { ...ex, coding_count: Math.max(0, (ex.coding_count || 1) - 1) } : ex));
+                                    showToast('Coding Question deleted (Simulated)');
+                                  }
                               }}
                               className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 text-rose-500 hover:text-rose-600 hover:scale-105 transition-all p-1"
                               title="Delete Question"
@@ -3802,7 +4059,33 @@ export default function App() {
                         {/* IDE Editor */}
                         <div className="flex flex-col rounded-xl border border-white/5 overflow-hidden">
                           <div className="bg-slate-900 px-4 py-2 border-b border-white/5 flex justify-between items-center">
-                            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">{examCodings[activeQuestionIndex].language} Compiler</span>
+                            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Compiler Language</span>
+                            <select
+                              value={codingSolutions[examCodings[activeQuestionIndex].id]?.language || examCodings[activeQuestionIndex].language}
+                              onChange={e => {
+                                const newLang = e.target.value;
+                                const qId = examCodings[activeQuestionIndex].id;
+                                const starterTemplates: Record<string, string> = {
+                                  'Python': 'def solve(input_val):\n    # Write your code here\n    pass',
+                                  'Java': 'import java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your code here\n    }\n}',
+                                  'C++': '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your code here\n    return 0;\n}',
+                                  'JavaScript': 'function solve(inputVal) {\n    // Write your code here\n    return null;\n}'
+                                };
+
+                                if (confirm(`Change compiler language to ${newLang}? This will reset the workspace to the starter template for ${newLang}.`)) {
+                                  setCodingSolutions(prev => ({
+                                    ...prev,
+                                    [qId]: { code: starterTemplates[newLang] || '', language: newLang }
+                                  }));
+                                }
+                              }}
+                              className="bg-slate-950 border border-slate-800 text-xs font-semibold px-2 py-1 rounded text-slate-200 outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                              <option value="Python">Python</option>
+                              <option value="Java">Java</option>
+                              <option value="C++">C++</option>
+                              <option value="JavaScript">JavaScript</option>
+                            </select>
                           </div>
                           <textarea
                             value={codingSolutions[examCodings[activeQuestionIndex].id]?.code || ''}
@@ -3810,7 +4093,10 @@ export default function App() {
                               const qId = examCodings[activeQuestionIndex].id;
                               setCodingSolutions(prev => ({
                                 ...prev,
-                                [qId]: { code: e.target.value, language: examCodings[activeQuestionIndex].language }
+                                [qId]: { 
+                                  code: e.target.value, 
+                                  language: prev[qId]?.language || examCodings[activeQuestionIndex].language 
+                                }
                               }));
                             }}
                             className="flex-1 w-full p-4 bg-slate-950 text-xs font-mono text-emerald-400 border-none outline-none resize-none min-h-[200px]"
@@ -3888,8 +4174,14 @@ export default function App() {
             {/* Header Block */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
               <div>
-                <span className={`px-2.5 py-1 rounded text-xs font-black tracking-wider uppercase ${detailedResult.attempt.passed ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
-                  {detailedResult.attempt.passed ? 'Passed Assessment' : 'Failed Assessment'}
+                <span className={`px-2.5 py-1 rounded text-xs font-black tracking-wider uppercase ${
+                  detailedResult.attempt.status === 'terminated' 
+                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-450 border border-rose-500/35' 
+                    : detailedResult.attempt.passed 
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                }`}>
+                  {detailedResult.attempt.status === 'terminated' ? 'Terminated Assessment' : detailedResult.attempt.passed ? 'Passed Assessment' : 'Failed Assessment'}
                 </span>
                 <h2 className="text-2xl font-black mt-2">{detailedResult.attempt.exam_name}</h2>
                 <p className="text-xs text-muted-foreground mt-1">Submitted on: {new Date(detailedResult.attempt.created_at).toLocaleString()}</p>
@@ -3901,8 +4193,25 @@ export default function App() {
               </div>
             </div>
 
+            {/* Proctor Termination Reason Alert */}
+            {detailedResult.attempt.status === 'terminated' && (
+              <div className="p-6 rounded-2xl bg-gradient-to-tr from-rose-500/10 to-orange-500/10 border border-rose-500/20 relative overflow-hidden">
+                <div className="flex gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                    <ShieldAlert className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-rose-900 dark:text-rose-300">Exam Terminated via AI Proctoring</h4>
+                    <p className="text-sm font-semibold text-rose-800 dark:text-rose-200 mt-2">
+                      Reason: <span className="font-black text-rose-700 dark:text-rose-300">{detailedResult.attempt.feedback || 'Multiple warnings exceeded / screen violations detected.'}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* AI Feedback Card */}
-            {detailedResult.attempt.feedback && (
+            {detailedResult.attempt.status !== 'terminated' && detailedResult.attempt.feedback && (
               <div className="p-6 rounded-2xl bg-gradient-to-tr from-indigo-500/10 to-violet-500/10 border border-indigo-500/20 relative overflow-hidden">
                 <div className="flex gap-3">
                   <div className="h-8 w-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">

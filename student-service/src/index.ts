@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
+types.setTypeParser(1114, (str) => new Date(str.replace(' ', 'T') + 'Z'));
 import * as jwt from 'jsonwebtoken';
 
 const app = express();
@@ -139,12 +140,12 @@ app.get('/api/student/dashboard/summary', authenticateStudent, async (req: Authe
     // Filter active exams where attempts_made < allowed_attempts
     const activeExams = active.rows.filter(row => parseInt(row.attempts_made) < parseInt(row.allowed_attempts));
 
-    // Completed Exams & Results
+    // Completed & Terminated Exams & Results
     const completed = await query(
       `SELECT ea.*, e.name as exam_name, e.exam_type, e.cutoff_percentage, e.duration_minutes
        FROM exam_attempts ea
        JOIN exams e ON ea.exam_id = e.id
-       WHERE ea.student_id = $1 AND ea.status = 'completed'
+       WHERE ea.student_id = $1 AND ea.status IN ('completed', 'terminated')
        ORDER BY ea.created_at DESC`,
       [studentId]
     );

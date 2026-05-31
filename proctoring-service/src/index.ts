@@ -3,7 +3,8 @@ import http from 'http';
 import { Server, Socket } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
+types.setTypeParser(1114, (str) => new Date(str.replace(' ', 'T') + 'Z'));
 import * as jwt from 'jsonwebtoken';
 
 const app = express();

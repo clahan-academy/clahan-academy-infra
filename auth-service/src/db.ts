@@ -1,4 +1,5 @@
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
+types.setTypeParser(1114, (str) => new Date(str.replace(' ', 'T') + 'Z'));
 import * as bcrypt from 'bcryptjs';
 
 const pool = new Pool({
