@@ -19,6 +19,35 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'notification-service' });
 });
 
+// Test SMTP connectivity diagnostic endpoint
+app.get('/api/notifications/test-smtp', (req, res) => {
+  transporter.verify((err, success) => {
+    if (err) {
+      res.status(500).json({
+        success: false,
+        message: 'SMTP Connection failed',
+        error: err.message,
+        smtpDetails: {
+          host: smtpHost,
+          port: smtpPort,
+          user: smtpUser,
+          passMasked: smtpPass ? '***' + smtpPass.slice(-4) : 'none'
+        }
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'SMTP connection established successfully! Ready to deliver verification codes.',
+        smtpDetails: {
+          host: smtpHost,
+          port: smtpPort,
+          user: smtpUser
+        }
+      });
+    }
+  });
+});
+
 // SMTP Transporter configuration
 const smtpHost = (process.env.SMTP_HOST || 'smtp.gmail.com').replace(/^"|"$/g, '');
 const smtpPort = parseInt((process.env.SMTP_PORT || '587').replace(/^"|"$/g, ''));

@@ -950,6 +950,33 @@ app.post('/api/exams/student/attempts/:attemptId/submit', authenticate, requireR
   }
 });
 
+// Terminate Exam Attempt (for proctoring/violations)
+app.post('/api/exams/student/attempts/:attemptId/terminate', authenticate, requireRole('student'), async (req, res) => {
+  try {
+    const { attemptId } = req.params;
+    const { reason } = req.body;
+
+    const attemptResult = await query('SELECT * FROM exam_attempts WHERE id = $1', [attemptId]);
+    if (attemptResult.rows.length === 0) return res.status(404).json({ error: 'Attempt not found' });
+    const attempt = attemptResult.rows[0];
+
+    if (attempt.status !== 'ongoing') {
+      return res.status(400).json({ error: 'Exam has already been submitted or terminated' });
+    }
+
+    await query(
+      `UPDATE exam_attempts
+       SET status = 'terminated', score = 0, percentage = 0.00, passed = FALSE, feedback = $1
+       WHERE id = $2`,
+      [`Exam automatically terminated: ${reason || 'Multiple warnings exceeded / screen violations detected.'}`, attemptId]
+    );
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get detailed result immediately
 app.get('/api/exams/student/attempts/:attemptId/result', authenticate, async (req, res) => {
   try {

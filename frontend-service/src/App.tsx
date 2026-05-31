@@ -102,6 +102,9 @@ export default function App() {
   const [completedAttempts, setCompletedAttempts] = useState<Attempt[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [activeAdminTab, setActiveAdminTab] = useState<'metrics' | 'colleges' | 'students' | 'exams' | 'live' | 'settings'>('metrics');
+  const [liveSessions, setLiveSessions] = useState<any[]>([]);
+  const [liveAlerts, setLiveAlerts] = useState<any[]>([]);
+  const adminSocketRef = useRef<any>(null);
   const [activeStudentTab, setActiveStudentTab] = useState<'active-exams' | 'results' | 'profile' | 'notifications'>('active-exams');
 
   // Admin College/Dept Creation state
@@ -260,6 +263,134 @@ export default function App() {
       }
     }
   }, [currentPage]);
+
+  useEffect(() => {
+    if (activeAdminTab !== 'live' || currentUser?.role !== 'admin') {
+      if (adminSocketRef.current) {
+        adminSocketRef.current.disconnect();
+        adminSocketRef.current = null;
+      }
+      return;
+    }
+
+    // Fetch initial list of ongoing attempts
+    const fetchLiveAttempts = async () => {
+      try {
+        const res = await fetch('/api/proctor/live', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setLiveSessions(data.map((s: any) => ({
+            attemptId: s.attempt_id,
+            studentId: s.student_id,
+            studentName: s.student_name,
+            rollNumber: s.roll_number || 'N/A',
+            examName: s.exam_name,
+            violationCount: parseInt(s.violation_count) || 0,
+            status: 'active',
+            recentViolations: s.recent_violations || []
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to fetch live attempts:', err);
+      }
+    };
+    fetchLiveAttempts();
+
+    // Connect admin socket
+    try {
+      const socket = io('/api/proctor', { path: '/socket.io' });
+      adminSocketRef.current = socket;
+
+      socket.on('connect', () => {
+        socket.emit('join-exam', { token, attemptId: 'admin', examId: 'admin' });
+      });
+
+      socket.on('student-joined', (data: any) => {
+        setLiveSessions(prev => {
+          if (prev.some(s => s.attemptId === data.attemptId)) {
+            return prev.map(s => s.attemptId === data.attemptId ? { ...s, status: 'active' } : s);
+          }
+          return [...prev, {
+            attemptId: data.attemptId,
+            studentId: data.studentId,
+            studentName: data.studentName,
+            rollNumber: data.rollNumber || 'N/A',
+            examName: data.examName || 'Live Exam',
+            violationCount: 0,
+            status: 'active',
+            recentViolations: []
+          }];
+        });
+      });
+
+      socket.on('fraud-alert', (data: any) => {
+        const timestamp = new Date().toLocaleTimeString();
+        setLiveAlerts(prev => [{
+          attemptId: data.attemptId,
+          studentId: data.studentId,
+          eventType: data.eventType,
+          details: data.details,
+          severity: data.severity,
+          timestamp
+        }, ...prev].slice(0, 50));
+
+        setLiveSessions(prev => prev.map(s => {
+          if (s.attemptId === data.attemptId) {
+            return {
+              ...s,
+              violationCount: s.violationCount + 1,
+              recentViolations: [{
+                event_type: data.eventType,
+                details: data.details,
+                severity: data.severity,
+                created_at: new Date().toISOString()
+              }, ...s.recentViolations].slice(0, 5)
+            };
+          }
+          return s;
+        }));
+      });
+
+      socket.on('student-terminated', (data: any) => {
+        setLiveSessions(prev => prev.map(s => {
+          if (s.attemptId === data.attemptId) {
+            return { ...s, status: 'terminated' };
+          }
+          return s;
+        }));
+        const timestamp = new Date().toLocaleTimeString();
+        setLiveAlerts(prev => [{
+          attemptId: data.attemptId,
+          studentId: data.studentId,
+          eventType: 'TERMINATED',
+          details: `Exam terminated: ${data.reason}`,
+          severity: 'critical',
+          timestamp
+        }, ...prev].slice(0, 50));
+      });
+
+      socket.on('student-disconnected', (data: any) => {
+        setLiveSessions(prev => prev.map(s => {
+          if (s.attemptId === data.attemptId) {
+            return { ...s, status: 'offline' };
+          }
+          return s;
+        }));
+      });
+
+    } catch (err) {
+      console.error('Failed to establish admin proctoring socket:', err);
+    }
+
+    return () => {
+      if (adminSocketRef.current) {
+        adminSocketRef.current.disconnect();
+        adminSocketRef.current = null;
+      }
+    };
+  }, [activeAdminTab, currentUser]);
 
   useEffect(() => {
     if (cameraStream && videoRef.current) {
@@ -1534,7 +1665,7 @@ export default function App() {
       socket.on('exam-terminated', (data: any) => {
         clearInterval(timerRef.current);
         alert(`Exam terminated automatically: ${data.reason}`);
-        handleExamTermination();
+        handleExamTermination(data.reason);
       });
 
     } catch (err) {
@@ -1586,7 +1717,7 @@ export default function App() {
       if (updated >= 2) {
         if (timerRef.current) clearInterval(timerRef.current);
         alert('Exam terminated: 2 Tab switches detected.');
-        handleExamTermination();
+        handleExamTermination('Multiple tab switches detected (limit 2).');
       } else {
         showToast(`Warning: Tab switch detected! (Limit: 2). Exam will terminate on next tab switch.`, 'error');
       }
@@ -1595,9 +1726,22 @@ export default function App() {
     });
   };
 
-  const handleExamTermination = () => {
-    // Clear listeners/intervals
+  const handleExamTermination = async (reason?: string) => {
     cleanupProctoring();
+    if (currentAttempt?.id) {
+      try {
+        await fetch(`${API_EXAMS}/student/attempts/${currentAttempt.id}/terminate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ reason: reason || 'Multiple violations detected.' })
+        });
+      } catch (err) {
+        console.error('Failed to notify backend of termination:', err);
+      }
+    }
     setCurrentPage('student-dash');
     loadStudentDashboard();
   };
@@ -2026,12 +2170,6 @@ export default function App() {
             </span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8">
-            <span className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer transition-colors" onClick={() => setCurrentPage('landing')}>Home</span>
-            <span className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer transition-colors" onClick={() => { setCurrentPage('landing'); setTimeout(() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' }), 100); }}>About</span>
-            <span className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer transition-colors" onClick={() => { setCurrentPage('landing'); setTimeout(() => document.getElementById('tech')?.scrollIntoView({ behavior: 'smooth' }), 100); }}>Assessments</span>
-            <span className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer transition-colors" onClick={() => { setCurrentPage('landing'); setTimeout(() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }), 100); }}>Contact</span>
-          </nav>
 
           <div className="flex items-center gap-4">
             <button 
@@ -3414,22 +3552,153 @@ export default function App() {
 
               {activeAdminTab === 'live' && (
                 <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-extrabold tracking-tight">AI Proctor Monitor</h2>
-                    <p className="text-sm text-muted-foreground">Monitor ongoing exams, warning counts, and flag fraud events in real time.</p>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 bg-rose-500 rounded-full animate-ping" />
+                        AI Live Proctor Center
+                      </h2>
+                      <p className="text-sm text-muted-foreground">Monitor ongoing exams, violation warnings, and proctor feeds in real time.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setLiveSessions([]); setLiveAlerts([]); }}
+                        className="px-3.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-900 flex items-center gap-1.5"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" /> Clear Feeds
+                      </button>
+                    </div>
                   </div>
 
-                  {/* List of active ongoing sessions */}
-                  <div className="p-6 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-white dark:bg-slate-950 shadow-sm">
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="font-bold text-sm">Active Test Candidates</h4>
-                      <span className="flex items-center gap-1.5 px-2 py-1 bg-rose-500/10 text-rose-600 rounded text-xs font-bold animate-pulse"><Video className="h-4 w-4" /> Live Tracking</span>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left Column: Active sessions list */}
+                    <div className="lg:col-span-2 space-y-6">
+                      <div className="p-6 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-white dark:bg-slate-950 shadow-sm space-y-4">
+                        <div className="flex justify-between items-center border-b pb-3">
+                          <h4 className="font-bold text-sm">Active Test Candidates ({liveSessions.length})</h4>
+                          <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Auto-Updating</span>
+                        </div>
+
+                        {liveSessions.length === 0 ? (
+                          <div className="p-12 text-center border rounded-xl bg-slate-50/50 dark:bg-slate-900/50 border-dashed">
+                            <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3 animate-pulse" />
+                            <p className="font-bold">No active candidates right now</p>
+                            <p className="text-xs text-muted-foreground mt-1">Once students join a proctored exam, they will appear here with live metrics.</p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {liveSessions.map((session) => (
+                              <div
+                                key={session.attemptId}
+                                className={`p-4 rounded-xl border transition-all ${
+                                  session.status === 'terminated'
+                                    ? 'border-rose-500/30 bg-rose-500/5'
+                                    : session.status === 'offline'
+                                      ? 'border-slate-200 dark:border-slate-800 bg-slate-500/5'
+                                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm'
+                                }`}
+                              >
+                                <div className="flex justify-between items-start gap-2">
+                                  <div>
+                                    <h5 className="font-bold text-xs truncate max-w-[160px]">{session.studentName}</h5>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">Roll: {session.rollNumber}</p>
+                                  </div>
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                                    session.status === 'active'
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                      : session.status === 'terminated'
+                                        ? 'bg-rose-500/20 text-rose-600 dark:text-rose-450 border border-rose-500/30 animate-pulse'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-muted-foreground'
+                                  }`}>
+                                    {session.status}
+                                  </span>
+                                </div>
+
+                                <div className="mt-3 py-1.5 px-2 bg-slate-50 dark:bg-slate-950 rounded-lg text-[10px] text-muted-foreground flex justify-between">
+                                  <span>Exam: <strong className="text-slate-800 dark:text-slate-200">{session.examName}</strong></span>
+                                  <span className="font-bold text-rose-600 dark:text-rose-400">{session.violationCount} Violations</span>
+                                </div>
+
+                                {/* Simulated camera stream thumbnail */}
+                                <div className="relative mt-3 h-28 rounded-lg bg-slate-950 overflow-hidden flex items-center justify-center border border-slate-800">
+                                  {session.status === 'active' ? (
+                                    <>
+                                      <div className="absolute inset-0 bg-emerald-500/5 animate-pulse" />
+                                      <Video className="h-6 w-6 text-emerald-500/40 animate-pulse" />
+                                      <span className="absolute bottom-2 left-2 flex items-center gap-1 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-emerald-400 font-bold">
+                                        <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-ping" /> LIVE FEED
+                                      </span>
+                                    </>
+                                  ) : session.status === 'terminated' ? (
+                                    <>
+                                      <div className="absolute inset-0 bg-rose-500/10" />
+                                      <ShieldAlert className="h-6 w-6 text-rose-500/50" />
+                                      <span className="absolute bottom-2 left-2 text-[9px] bg-rose-650 px-1.5 py-0.5 rounded text-white font-bold">
+                                        TERMINATED
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="absolute inset-0 bg-slate-900" />
+                                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">OFFLINE / ENDED</span>
+                                    </>
+                                  )}
+                                </div>
+
+                                {/* Recent violations list */}
+                                {session.recentViolations && session.recentViolations.length > 0 && (
+                                  <div className="mt-3 space-y-1">
+                                    <p className="text-[9px] font-bold text-muted-foreground uppercase">Recent Alerts:</p>
+                                    {session.recentViolations.slice(0, 3).map((v: any, vi: number) => (
+                                      <div key={vi} className="flex justify-between items-center text-[9px] text-rose-600 dark:text-rose-450 bg-rose-500/5 p-1 rounded">
+                                        <span className="truncate max-w-[130px]">{v.event_type.replace(/_/g, ' ')}</span>
+                                        <span className="text-[8px] text-muted-foreground">{new Date(v.created_at).toLocaleTimeString()}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="p-12 text-center border rounded-xl bg-slate-50/50 dark:bg-slate-900/50 border-dashed">
-                      <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3 animate-bounce" />
-                      <p className="font-bold">Waiting for students to join exam...</p>
-                      <p className="text-xs text-muted-foreground mt-1">Once students start an exam attempt, their video feeds and fraud logs appear here.</p>
+                    {/* Right Column: Live alerts log */}
+                    <div className="space-y-6">
+                      <div className="p-6 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-white dark:bg-slate-950 shadow-sm space-y-4">
+                        <div className="flex justify-between items-center border-b pb-3">
+                          <h4 className="font-bold text-sm">Security Log</h4>
+                          <span className="h-2 w-2 bg-rose-500 rounded-full animate-ping" />
+                        </div>
+
+                        <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                          {liveAlerts.length === 0 ? (
+                            <div className="p-8 text-center text-xs text-muted-foreground">
+                              No security incidents logged in this session.
+                            </div>
+                          ) : (
+                            liveAlerts.map((alert, idx) => (
+                              <div
+                                key={idx}
+                                className={`p-3 rounded-xl border text-[11px] space-y-1 ${
+                                  alert.severity === 'critical' || alert.eventType === 'TERMINATED'
+                                    ? 'border-rose-500/25 bg-rose-500/5 text-rose-800 dark:text-rose-300'
+                                    : 'border-amber-500/20 bg-amber-500/5 text-amber-800 dark:text-amber-350'
+                                }`}
+                              >
+                                <div className="flex justify-between items-center">
+                                  <strong className="uppercase text-[9px] tracking-wider font-bold">
+                                    {alert.eventType.replace(/_/g, ' ')}
+                                  </strong>
+                                  <span className="text-[8px] opacity-70">{alert.timestamp}</span>
+                                </div>
+                                <p className="leading-tight">{alert.details}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
