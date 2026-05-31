@@ -10,7 +10,7 @@ import * as jwt from 'jsonwebtoken';
 const app = express();
 const PORT = process.env.PORT || 4005;
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_access_token_key';
+const JWT_SECRET = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'super_secret_access_token_key';
 
 // Database Pool
 const pool = new Pool({
@@ -64,7 +64,7 @@ io.on('connection', (socket: Socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
   // Authentication & Room Joining
-  socket.on('join-exam', (payload: { token: string; attemptId: string; examId: string }) => {
+  socket.on('join-exam', async (payload: { token: string; attemptId: string; examId: string }) => {
     try {
       const { token, attemptId, examId } = payload;
       const decoded: any = jwt.verify(token, JWT_SECRET);
@@ -82,19 +82,44 @@ io.on('connection', (socket: Socket) => {
         socket.join(`exam:${examId}`);
         console.log(`Student ${decoded.email} joined proctoring for attempt ${attemptId}`);
         
+        let rollNumber = 'N/A';
+        let examName = 'N/A';
+        let studentName = decoded.full_name || decoded.email;
+
+        try {
+          const detailsResult = await query(`
+            SELECT u.roll_number, e.name as exam_name, u.full_name
+            FROM exam_attempts ea
+            JOIN users u ON ea.student_id = u.id
+            JOIN exams e ON ea.exam_id = e.id
+            WHERE ea.id = $1
+          `, [attemptId]);
+
+          if (detailsResult.rows.length > 0) {
+            rollNumber = detailsResult.rows[0].roll_number || 'N/A';
+            examName = detailsResult.rows[0].exam_name || 'N/A';
+            studentName = detailsResult.rows[0].full_name || studentName;
+          }
+        } catch (dbErr) {
+          console.error('Failed to query student/exam details for proctor room:', dbErr);
+        }
+
         // Notify admin rooms
         io.to('admin-monitor').emit('student-joined', {
           socketId: socket.id,
-          studentName: decoded.fullName || decoded.email,
+          studentName,
           studentId: decoded.id,
           attemptId,
           examId,
+          rollNumber,
+          examName
         });
       } else if (decoded.role === 'admin') {
         socket.join('admin-monitor');
         console.log(`Admin joined live proctoring monitor room`);
       }
     } catch (err: any) {
+      console.error('Socket authentication failed:', err.message);
       socket.emit('auth-error', { error: 'Authentication failed for Socket.IO' });
       socket.disconnect();
     }
