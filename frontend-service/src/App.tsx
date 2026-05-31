@@ -628,6 +628,27 @@ export default function App() {
     }
   };
 
+  const handleCsvFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      showToast('Please select a valid CSV file. For Excel files, choose "Save As CSV" first.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        setStudentCsvInput(text);
+        const rowsCount = text.split('\n').filter(line => line.trim()).length - 1;
+        showToast(`Loaded ${rowsCount > 0 ? rowsCount : 0} student records. Click "Upload" to finalize.`, 'success');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const importStudentsCsv = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentCsvInput.trim()) return;
@@ -829,6 +850,9 @@ export default function App() {
       departmentId: ex.department_id || '',
       year: ex.year || '1st Year'
     });
+    if (ex.college_id) {
+      fetchDepartments(ex.college_id);
+    }
     setEditingExamId(ex.id);
     
     const formElement = document.getElementById('exam-configuration-card');
@@ -1239,7 +1263,12 @@ export default function App() {
       mockCodings.forEach(c => {
         defaultSols[c.id] = { code: c.starter_code, language: c.language };
       });
-      setCodingSolutions(defaultSols);
+    }
+
+    if (currentExam?.exam_type === 'coding') {
+      setSelectedSection('coding');
+    } else {
+      setSelectedSection('mcq');
     }
 
     setValidationStep('active');
@@ -2085,8 +2114,8 @@ export default function App() {
                       className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-transparent"
                       required
                     >
-                      <option value="">Select College</option>
-                      {colleges.map(c => <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>)}
+                      <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select College</option>
+                      {colleges.map(c => <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{c.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -2094,21 +2123,21 @@ export default function App() {
                     <select 
                       value={regForm.departmentId} 
                       onChange={e => setRegForm({...regForm, departmentId: e.target.value})} 
-                      className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-transparent"
+                      className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-transparent text-slate-900 dark:text-white"
                       required
                       disabled={!regForm.collegeId}
                     >
-                      <option value="">Select Dept</option>
-                      {departments.map(d => <option key={d.id} value={d.id} className="text-slate-900">{d.name}</option>)}
+                      <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select Dept</option>
+                      {departments.map(d => <option key={d.id} value={d.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{d.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground">Year *</label>
-                    <select value={regForm.year} onChange={e => setRegForm({...regForm, year: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-transparent" required>
-                      <option value="1st Year" className="text-slate-900">1st Year</option>
-                      <option value="2nd Year" className="text-slate-900">2nd Year</option>
-                      <option value="3rd Year" className="text-slate-900">3rd Year</option>
-                      <option value="4th Year" className="text-slate-900">4th Year</option>
+                    <select value={regForm.year} onChange={e => setRegForm({...regForm, year: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-transparent text-slate-900 dark:text-white" required>
+                      <option value="1st Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">1st Year</option>
+                      <option value="2nd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">2nd Year</option>
+                      <option value="3rd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">3rd Year</option>
+                      <option value="4th Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">4th Year</option>
                     </select>
                   </div>
                 </div>
@@ -2614,11 +2643,11 @@ export default function App() {
                       <select 
                         value={newDeptCollegeId} 
                         onChange={e => setNewDeptCollegeId(e.target.value)} 
-                        className="p-3.5 border border-slate-200 dark:border-slate-800 rounded-xl text-sm bg-transparent focus:outline-indigo-500" 
+                        className="p-3.5 border border-slate-200 dark:border-slate-800 rounded-xl text-sm bg-transparent text-slate-900 dark:text-white focus:outline-indigo-500" 
                         required
                       >
-                        <option value="">Select Target College</option>
-                        {adminColleges.map(c => <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>)}
+                        <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select Target College</option>
+                        {adminColleges.map(c => <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{c.name}</option>)}
                       </select>
                       <input 
                         type="text" 
@@ -2670,19 +2699,19 @@ export default function App() {
                           <input type="text" name="rollNumber" placeholder="Roll Number" className="p-3 border rounded-xl text-xs bg-transparent" required />
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                          <select name="collegeId" onChange={e => fetchDepartments(e.target.value)} className="p-3 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
-                            <option value="">College</option>
-                            {adminColleges.map(c => <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>)}
+                          <select name="collegeId" onChange={e => fetchDepartments(e.target.value)} className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                            <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">College</option>
+                            {adminColleges.map(c => <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{c.name}</option>)}
                           </select>
-                          <select name="departmentId" className="p-3 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
-                            <option value="">Dept</option>
-                            {departments.map(d => <option key={d.id} value={d.id} className="text-slate-900">{d.name}</option>)}
+                          <select name="departmentId" className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                            <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Dept</option>
+                            {departments.map(d => <option key={d.id} value={d.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{d.name}</option>)}
                           </select>
-                          <select name="year" className="p-3 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
-                            <option value="1st Year" className="text-slate-900">1st Year</option>
-                            <option value="2nd Year" className="text-slate-900">2nd Year</option>
-                            <option value="3rd Year" className="text-slate-900">3rd Year</option>
-                            <option value="4th Year" className="text-slate-900">4th Year</option>
+                          <select name="year" className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                            <option value="1st Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">1st Year</option>
+                            <option value="2nd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">2nd Year</option>
+                            <option value="3rd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">3rd Year</option>
+                            <option value="4th Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">4th Year</option>
                           </select>
                         </div>
                         <button type="submit" className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors">
@@ -2715,16 +2744,37 @@ export default function App() {
                         </a>
                       </div>
                       <form onSubmit={importStudentsCsv} className="space-y-3">
+                        <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center hover:border-indigo-500 dark:hover:border-indigo-500 transition-all group relative cursor-pointer">
+                          <input
+                            type="file"
+                            accept=".csv"
+                            onChange={handleCsvFileUpload}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Upload className="h-6 w-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                            <p className="text-xs font-bold text-slate-700 dark:text-slate-350">
+                              Drag & drop or Click to upload CSV File
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              Accepts .csv format. Save your Excel sheets as CSV to upload.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-center text-[10px] text-muted-foreground uppercase font-bold py-1">
+                          — Or Paste CSV Text Directly —
+                        </div>
+
                         <textarea
                           value={studentCsvInput}
                           onChange={e => setStudentCsvInput(e.target.value)}
                           placeholder="Paste CSV rows here (Header: Full Name,Email,Phone,Roll Number,College,Department,Year)"
-                          rows={4}
-                          className="w-full p-3 border rounded-xl text-xs bg-transparent font-mono"
-                          required
+                          rows={3}
+                          className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent font-mono focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
                         />
                         <button type="submit" className="w-full py-3 border border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white font-bold rounded-xl text-xs transition-all">
-                          Upload CSV Rows
+                          Upload & Process Students
                         </button>
                       </form>
 
@@ -2810,10 +2860,10 @@ export default function App() {
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">Exam Type</label>
-                          <select value={examForm.examType} onChange={e => setExamForm({...examForm, examType: e.target.value as any})} className="w-full p-3 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required>
-                            <option value="mcq" className="text-slate-900">MCQ Only</option>
-                            <option value="coding" className="text-slate-900">Coding Only</option>
-                            <option value="both" className="text-slate-900">MCQ + Coding</option>
+                           <select value={examForm.examType} onChange={e => setExamForm({...examForm, examType: e.target.value as any})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required>
+                            <option value="mcq" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">MCQ Only</option>
+                            <option value="coding" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Coding Only</option>
+                            <option value="both" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">MCQ + Coding</option>
                           </select>
                         </div>
                       </div>
@@ -2829,11 +2879,11 @@ export default function App() {
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">Allowed Attempts</label>
-                          <select value={examForm.allowedAttempts} onChange={e => setExamForm({...examForm, allowedAttempts: parseInt(e.target.value) || 1})} className="w-full p-3 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1">
-                            <option value="1" className="text-slate-900">1 Attempt</option>
-                            <option value="2" className="text-slate-900">2 Attempts</option>
-                            <option value="3" className="text-slate-900">3 Attempts</option>
-                            <option value="999" className="text-slate-900">Unlimited</option>
+                          <select value={examForm.allowedAttempts} onChange={e => setExamForm({...examForm, allowedAttempts: parseInt(e.target.value) || 1})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1">
+                            <option value="1" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">1 Attempt</option>
+                            <option value="2" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">2 Attempts</option>
+                            <option value="3" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">3 Attempts</option>
+                            <option value="999" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Unlimited</option>
                           </select>
                         </div>
                       </div>
@@ -2841,25 +2891,25 @@ export default function App() {
                       <div className="grid grid-cols-3 gap-3">
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">College Eligibility</label>
-                          <select value={examForm.collegeId} onChange={e => { setExamForm({...examForm, collegeId: e.target.value}); fetchDepartments(e.target.value); }} className="w-full p-3 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required>
-                            <option value="">Select College</option>
-                            {adminColleges.map(c => <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>)}
+                          <select value={examForm.collegeId} onChange={e => { setExamForm({...examForm, collegeId: e.target.value}); fetchDepartments(e.target.value); }} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required>
+                            <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select College</option>
+                            {adminColleges.map(c => <option key={c.id} value={c.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{c.name}</option>)}
                           </select>
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">Department Eligibility</label>
-                          <select value={examForm.departmentId} onChange={e => setExamForm({...examForm, departmentId: e.target.value})} className="w-full p-3 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required disabled={!examForm.collegeId}>
-                            <option value="">Select Dept</option>
-                            {departments.map(d => <option key={d.id} value={d.id} className="text-slate-900">{d.name}</option>)}
+                          <select value={examForm.departmentId} onChange={e => setExamForm({...examForm, departmentId: e.target.value})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required disabled={!examForm.collegeId}>
+                            <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select Dept</option>
+                            {departments.map(d => <option key={d.id} value={d.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{d.name}</option>)}
                           </select>
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-muted-foreground">Year Eligibility</label>
-                          <select value={examForm.year} onChange={e => setExamForm({...examForm, year: e.target.value})} className="w-full p-3 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required>
-                            <option value="1st Year" className="text-slate-900">1st Year</option>
-                            <option value="2nd Year" className="text-slate-900">2nd Year</option>
-                            <option value="3rd Year" className="text-slate-900">3rd Year</option>
-                            <option value="4th Year" className="text-slate-900">4th Year</option>
+                          <select value={examForm.year} onChange={e => setExamForm({...examForm, year: e.target.value})} className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white mt-1" required>
+                            <option value="1st Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">1st Year</option>
+                            <option value="2nd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">2nd Year</option>
+                            <option value="3rd Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">3rd Year</option>
+                            <option value="4th Year" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">4th Year</option>
                           </select>
                         </div>
                       </div>
@@ -3172,11 +3222,11 @@ export default function App() {
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <label className="text-xs font-bold text-muted-foreground">Correct Option</label>
-                        <select value={mcqForm.correctAnswer} onChange={e => setMcqForm({...mcqForm, correctAnswer: e.target.value})} className="w-full p-3 mt-1 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
-                          <option value="A">Option A</option>
-                          <option value="B">Option B</option>
-                          <option value="C">Option C</option>
-                          <option value="D">Option D</option>
+                        <select value={mcqForm.correctAnswer} onChange={e => setMcqForm({...mcqForm, correctAnswer: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                          <option value="A" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Option A</option>
+                          <option value="B" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Option B</option>
+                          <option value="C" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Option C</option>
+                          <option value="D" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Option D</option>
                         </select>
                       </div>
                       <div>
@@ -3185,10 +3235,10 @@ export default function App() {
                       </div>
                       <div>
                         <label className="text-xs font-bold text-muted-foreground">Difficulty Level</label>
-                        <select value={mcqForm.difficulty} onChange={e => setMcqForm({...mcqForm, difficulty: e.target.value})} className="w-full p-3 mt-1 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
-                          <option value="easy">Easy</option>
-                          <option value="medium">Medium</option>
-                          <option value="hard">Hard</option>
+                        <select value={mcqForm.difficulty} onChange={e => setMcqForm({...mcqForm, difficulty: e.target.value})} className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" required>
+                          <option value="easy" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Easy</option>
+                          <option value="medium" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Medium</option>
+                          <option value="hard" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Hard</option>
                         </select>
                       </div>
                     </div>
@@ -3282,13 +3332,13 @@ export default function App() {
                               starterCode: starterTemplates[lang] || ''
                             });
                           }} 
-                          className="w-full p-3 mt-1 border rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" 
+                          className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent text-slate-900 dark:text-white" 
                           required
                         >
-                          <option value="Python">Python</option>
-                          <option value="Java">Java</option>
-                          <option value="C++">C++</option>
-                          <option value="JavaScript">JavaScript</option>
+                          <option value="Python" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Python</option>
+                          <option value="Java" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Java</option>
+                          <option value="C++" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">C++</option>
+                          <option value="JavaScript" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">JavaScript</option>
                         </select>
                       </div>
                     </div>
@@ -3376,7 +3426,7 @@ export default function App() {
                                   updated[idx].expected_output = e.target.value;
                                   setCodingTestCases(updated);
                                 }} 
-                                className="w-full p-2 border rounded-lg text-xs bg-white dark:bg-slate-955 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white" 
+                                className="w-full p-2 border rounded-lg text-xs bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white" 
                                 required 
                               />
                             </div>
@@ -3389,7 +3439,7 @@ export default function App() {
                                   updated[idx].isHidden = e.target.value === 'true';
                                   setCodingTestCases(updated);
                                 }} 
-                                className="w-full p-2 border rounded-lg text-xs bg-white dark:bg-slate-955 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white"
+                                className="w-full p-2 border rounded-lg text-xs bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white"
                               >
                                 <option value="false">Visible</option>
                                 <option value="true">Hidden</option>
