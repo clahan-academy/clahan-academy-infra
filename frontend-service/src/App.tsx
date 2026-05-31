@@ -304,7 +304,7 @@ export default function App() {
 
     // Connect admin socket
     try {
-      const socket = io('/api/proctor', { path: '/socket.io' });
+      const socket = io('/', { path: '/socket.io' });
       adminSocketRef.current = socket;
 
       socket.on('connect', () => {
@@ -1695,7 +1695,7 @@ export default function App() {
   const initProctoringSocket = (attemptId: string) => {
     // Connect socket to proctoring service
     try {
-      const socket = io('/api/proctor', { path: '/socket.io' });
+      const socket = io('/', { path: '/socket.io' });
       socketRef.current = socket;
 
       socket.on('connect', () => {
