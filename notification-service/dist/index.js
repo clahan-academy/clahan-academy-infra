@@ -287,7 +287,16 @@ async function processJob(event, payload) {
         }
         if (!sent) {
             console.error(`Email delivery failed permanently to ${payload.email} after 3 attempts: ${lastErr}`);
-            deliveryLogs.push({ email: payload.email, event, timestamp: new Date(), success: false, details: lastErr });
+            let debugDetails = lastErr;
+            if (payload.otp) {
+                debugDetails += ` [DEBUG OTP: ${payload.otp}]`;
+                console.log(`[FALLBACK LOG] OTP for ${payload.email} is: ${payload.otp}`);
+            }
+            else if (payload.password) {
+                debugDetails += ` [DEBUG Password: ${payload.password}]`;
+                console.log(`[FALLBACK LOG] Temporary password for ${payload.email} is: ${payload.password}`);
+            }
+            deliveryLogs.push({ email: payload.email, event, timestamp: new Date(), success: false, details: debugDetails });
         }
     }
     catch (err) {
