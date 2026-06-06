@@ -194,18 +194,22 @@ app.get('/api/student/dashboard/summary', authenticateStudent, async (req: Authe
 // Notifications
 app.get('/api/student/notifications', authenticateStudent, async (req: AuthenticatedRequest, res) => {
   try {
-    // Return standard notifications (could be stored in PostgreSQL or returned dynamically)
-    // For Clahan Academy V2, we query standard notifications for the student's college/department.
-    const collegeId = req.user!.college_id;
-    const departmentId = req.user!.department_id;
-    const year = req.user!.year;
+    const studentId = req.user!.id;
+    
+    // Fetch latest user details from DB to avoid stale token issues
+    const userRes = await query('SELECT college_id, department_id, year, batch_id FROM users WHERE id = $1', [studentId]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Student profile not found' });
+    }
+    const { college_id: collegeId, department_id: departmentId, year, batch_id: batchId } = userRes.rows[0];
 
     // Let's dynamically generate a list of relevant in-app announcements
     const publishedExams = await query(
       `SELECT id, name, schedule_date FROM exams 
-       WHERE college_id = $1 AND department_id = $2 AND year = $3 AND is_published = TRUE
+       WHERE college_id = $1 AND (department_id = $2 OR $2 = ANY(department_ids)) AND year = $3 
+         AND (batch_id IS NULL OR batch_id = $4) AND is_published = TRUE
        ORDER BY schedule_date DESC LIMIT 10`,
-      [collegeId, departmentId, year]
+      [collegeId, departmentId, year, batchId]
     );
 
     const notifications = publishedExams.rows.map(exam => ({

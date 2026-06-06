@@ -497,15 +497,9 @@ export default function App() {
       } else {
         throw new Error(`Colleges API returned status ${res.status}`);
       }
-    } catch (err) {
-      console.warn("REST Colleges API failed, loading mock colleges data.");
-      // Fallback
-      const mockCols = [
-        { id: 'col-1', name: 'ABC Engineering College' },
-        { id: 'col-2', name: 'XYZ Institute of Technology' }
-      ];
-      setColleges(mockCols);
-      setAdminColleges(mockCols);
+    } catch (err: any) {
+      console.error("fetchColleges error:", err);
+      showToast(`Error fetching colleges: ${err.message}`, 'error');
     }
   };
 
@@ -519,16 +513,9 @@ export default function App() {
       } else {
         throw new Error(`Departments API returned status ${res.status}`);
       }
-    } catch (err) {
-      // Fallback departments mapping
-      const mockDepts = [
-        { id: 'dept-1', college_id: collegeId, name: 'CSE' },
-        { id: 'dept-2', college_id: collegeId, name: 'ECE' },
-        { id: 'dept-3', college_id: collegeId, name: 'AIDS' },
-        { id: 'dept-4', college_id: collegeId, name: 'AIML' },
-        { id: 'dept-5', college_id: collegeId, name: 'IT' }
-      ];
-      setDepartments(mockDepts);
+    } catch (err: any) {
+      console.error("fetchDepartments error:", err);
+      showToast(`Error fetching departments: ${err.message}`, 'error');
     }
   };
 
@@ -542,15 +529,9 @@ export default function App() {
       } else {
         throw new Error(`Batches API returned status ${res.status}`);
       }
-    } catch (err) {
-      // Fallback batches mapping
-      const mockBatches = [
-        { id: 'batch-1', college_id: collegeId, name: 'Batch 2021-25' },
-        { id: 'batch-2', college_id: collegeId, name: 'Batch 2022-26' },
-        { id: 'batch-3', college_id: collegeId, name: 'Batch 2023-27' },
-        { id: 'batch-4', college_id: collegeId, name: 'Batch 2024-28' }
-      ];
-      setBatches(mockBatches);
+    } catch (err: any) {
+      console.error("fetchBatches error:", err);
+      showToast(`Error fetching batches: ${err.message}`, 'error');
     }
   };
 
@@ -662,82 +643,9 @@ export default function App() {
         const notifData = await notifRes.json();
         setNotifications(notifData);
       }
-    } catch (err) {
-      console.warn("Student dashboard APIs offline, rendering interactive mock data.");
-      // Fallback interactive mock dataset
-      setUpcomingExams([
-        {
-          id: 'exam-upcoming-1',
-          name: 'Cloud Infrastructure & DevOps Mock',
-          description: 'Evaluate knowledge on AWS, Terraform, Docker, and Github Actions CI pipelines.',
-          exam_type: 'both',
-          duration_minutes: 80,
-          cutoff_percentage: 50,
-          allowed_attempts: 2,
-          schedule_date: new Date(Date.now() + 86400000 * 2).toISOString(),
-          college_id: 'col-1',
-          department_id: 'dept-1',
-          year: '3rd Year',
-          is_published: true
-        }
-      ]);
-
-      setActiveExams([
-        {
-          id: 'exam-active-1',
-          name: 'Technical Aptitude & Java Coding Test',
-          description: 'Standard MCQ aptitude followed by Java programming algorithms evaluation.',
-          exam_type: 'both',
-          duration_minutes: 60,
-          cutoff_percentage: 60,
-          allowed_attempts: 1,
-          schedule_date: new Date(Date.now() - 3600000).toISOString(),
-          college_id: 'col-1',
-          department_id: 'dept-1',
-          year: '3rd Year',
-          is_published: true
-        },
-        {
-          id: 'exam-active-2',
-          name: 'Python Algorithms MCQ Assessment',
-          description: 'Focuses on sorting algorithms, complexities, data structures, and Python basics.',
-          exam_type: 'mcq',
-          duration_minutes: 30,
-          cutoff_percentage: 50,
-          allowed_attempts: 3,
-          schedule_date: new Date(Date.now() - 7200000).toISOString(),
-          college_id: 'col-1',
-          department_id: 'dept-1',
-          year: '3rd Year',
-          is_published: true
-        }
-      ]);
-
-      setCompletedAttempts([
-        {
-          id: 'att-mock-1',
-          exam_id: 'exam-completed-1',
-          student_id: 'usr-mock',
-          attempt_number: 1,
-          score: 84,
-          percentage: 84.00,
-          passed: true,
-          mcq_score: 44,
-          coding_score: 40,
-          time_taken_seconds: 2400,
-          feedback: 'Excellent Work! You scored 84%. Strong Coding Performance. Focus More On Aptitude Accuracy.',
-          status: 'completed',
-          created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-          exam_name: 'Mettl Style Placement Coding Round 1',
-          exam_type: 'both',
-          cutoff_percentage: 50
-        }
-      ]);
-
-      setNotifications([
-        { id: 'n-1', title: 'New Exam Published', message: 'Exam "Technical Aptitude & Java Coding Test" has been scheduled for your batch.', createdAt: new Date().toISOString() },
-        { id: 'n-2', title: 'Results Declared', message: 'Your result for Mettl Style Placement Coding Round 1 is published.', createdAt: new Date(Date.now() - 86400000 * 3).toISOString() }
-      ]);
+    } catch (err: any) {
+      console.error("Student dashboard APIs error:", err);
+      showToast(`Error loading dashboard: ${err.message}`, 'error');
     }
   };
 
@@ -764,18 +672,9 @@ export default function App() {
         const data = await res.json();
         showToast(data.error || 'Update failed', 'error');
       }
-    } catch (err) {
-      // Simulate local save
-      if (currentUser) {
-        setCurrentUser({
-          ...currentUser,
-          phone: phoneUpdate || currentUser.phone,
-          githubProfile: githubUpdate || currentUser.githubProfile,
-          linkedinProfile: linkedinUpdate || currentUser.linkedinProfile,
-          profilePhotoUrl: photoUpdate || currentUser.profilePhotoUrl
-        });
-        showToast('Profile updated successfully (Simulated)');
-      }
+    } catch (err: any) {
+      console.error("updateStudentProfile error:", err);
+      showToast(`Error updating profile: ${err.message}`, 'error');
     }
   };
 
@@ -856,36 +755,9 @@ export default function App() {
         setAdminBatches(await batchRes.json());
       }
 
-    } catch (err) {
-      console.warn("Admin endpoints offline, rendering admin fallback dashboard.");
-      // Fallback Mock Metrics
-      setAdminMetrics({
-        totalStudents: 142,
-        totalExams: 18,
-        liveExams: 2,
-        completedExams: 8,
-        averageScore: 71.4,
-        passPercentage: 78.5,
-        failPercentage: 21.5
-      });
-      
-      setAdminStudents([
-        { id: 'std-1', email: 'john.doe@college.edu', role: 'student', fullName: 'John Doe', rollNumber: 'CSE101', status: 'active', college_name: 'ABC Engineering College', department_name: 'CSE', year: '3rd Year', email_verified: true },
-        { id: 'std-2', email: 'jane.smith@college.edu', role: 'student', fullName: 'Jane Smith', rollNumber: 'ECE203', status: 'active', college_name: 'ABC Engineering College', department_name: 'ECE', year: '4th Year', email_verified: true },
-        { id: 'std-3', email: 'bobby.miller@college.edu', role: 'student', fullName: 'Bobby Miller', rollNumber: 'AIDS04', status: 'pending', college_name: 'XYZ Institute of Technology', department_name: 'AIDS', year: '2nd Year', email_verified: false }
-      ]);
-
-      setAdminExams([
-        { id: 'exam-1', name: 'Technical Aptitude & Java Coding Test', exam_type: 'both', duration_minutes: 60, cutoff_percentage: 60, schedule_date: new Date().toISOString(), is_published: true, mcq_count: 10, coding_count: 1, college_name: 'ABC Engineering College', department_name: 'CSE', year: '3rd Year' },
-        { id: 'exam-2', name: 'Python Algorithms MCQ Assessment', exam_type: 'mcq', duration_minutes: 30, cutoff_percentage: 50, schedule_date: new Date().toISOString(), is_published: true, mcq_count: 15, coding_count: 0, college_name: 'ABC Engineering College', department_name: 'CSE', year: '3rd Year' },
-        { id: 'exam-3', name: 'MLOps & Deployment Assessment', exam_type: 'coding', duration_minutes: 90, cutoff_percentage: 65, schedule_date: new Date(Date.now() + 86400000 * 5).toISOString(), is_published: false, mcq_count: 0, coding_count: 2, college_name: 'XYZ Institute of Technology', department_name: 'AIML', year: '4th Year' }
-      ]);
-
-      setAdminBatches([
-        { id: 'batch-1', college_id: 'col-1', name: 'Batch 2021-25', college_name: 'ABC Engineering College' },
-        { id: 'batch-2', college_id: 'col-1', name: 'Batch 2022-26', college_name: 'ABC Engineering College' },
-        { id: 'batch-3', college_id: 'col-2', name: 'Batch 2023-27', college_name: 'XYZ Institute of Technology' }
-      ]);
+    } catch (err: any) {
+      console.error("Admin dashboard load error:", err);
+      showToast(`Error loading admin dashboard: ${err.message}`, 'error');
     }
   };
 
@@ -2841,12 +2713,12 @@ export default function App() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground">Batch *</label>
+                    <label className="text-xs font-semibold text-muted-foreground">Batch {batches.length > 0 ? '*' : '(Optional)'}</label>
                     <select 
                       value={regForm.batchId} 
                       onChange={e => setRegForm({...regForm, batchId: e.target.value})} 
                       className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                      required
+                      required={batches.length > 0}
                       disabled={!regForm.collegeId}
                     >
                       <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select Batch</option>
@@ -3575,8 +3447,8 @@ export default function App() {
                             <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Dept</option>
                             {departments.map(d => <option key={d.id} value={d.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{d.name}</option>)}
                           </select>
-                          <select name="batchId" className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" required>
-                            <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Batch</option>
+                          <select name="batchId" className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" required={batches.length > 0}>
+                            <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{batches.length > 0 ? 'Batch' : 'Batch (N/A)'}</option>
                             {batches.map(b => <option key={b.id} value={b.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{b.name}</option>)}
                           </select>
                           <select name="year" className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" required>
