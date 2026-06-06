@@ -316,7 +316,7 @@ app.post('/api/exams/:id/publish', authenticate, requireRole('admin'), async (re
             scheduleDate: exam.schedule_date
         }));
         if (notificationPayloads.length > 0) {
-            await queueNotificationsBulk('EXAM_PUBLISHED', notificationPayloads);
+            queueNotificationsBulk('EXAM_PUBLISHED', notificationPayloads);
         }
         res.json({ message: 'Exam published successfully', exam });
     }

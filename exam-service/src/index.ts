@@ -340,7 +340,7 @@ app.post('/api/exams/:id/publish', authenticate, requireRole('admin'), async (re
     }));
 
     if (notificationPayloads.length > 0) {
-      await queueNotificationsBulk('EXAM_PUBLISHED', notificationPayloads);
+      queueNotificationsBulk('EXAM_PUBLISHED', notificationPayloads);
     }
 
     res.json({ message: 'Exam published successfully', exam });

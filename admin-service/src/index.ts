@@ -220,7 +220,7 @@ app.post('/api/admin/students', authenticateAdmin, async (req, res) => {
     );
 
     // Queue notification email
-    await queueNotification('CREDENTIAL_EMAIL', {
+    queueNotification('CREDENTIAL_EMAIL', {
       email,
       fullName,
       password: plainPassword
@@ -363,7 +363,7 @@ app.post('/api/admin/students/import', authenticateAdmin, async (req, res) => {
     }
 
     if (notificationPayloads.length > 0) {
-      await queueNotificationsBulk('CREDENTIAL_EMAIL', notificationPayloads);
+      queueNotificationsBulk('CREDENTIAL_EMAIL', notificationPayloads);
     }
 
     res.json({ message: 'Import completed', summary: importSummary });
@@ -387,7 +387,7 @@ app.post('/api/admin/students/:id/reset-password', authenticateAdmin, async (req
     const student = check.rows[0];
 
     // Notify student
-    await queueNotification('CREDENTIAL_EMAIL', {
+    queueNotification('CREDENTIAL_EMAIL', {
       email: student.email,
       fullName: student.full_name,
       password: plainPassword
@@ -411,7 +411,7 @@ app.post('/api/admin/students/:id/resend-credentials', authenticateAdmin, async 
     }
     const student = check.rows[0];
 
-    await queueNotification('CREDENTIAL_EMAIL', {
+    queueNotification('CREDENTIAL_EMAIL', {
       email: student.email,
       fullName: student.full_name,
       password: plainPassword

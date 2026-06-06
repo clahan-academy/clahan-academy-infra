@@ -199,7 +199,7 @@ app.post('/api/auth/register', async (req, res) => {
         await setCache(`otp:${email}`, otp, 600); // 10 minutes expiry
         console.log(`[TESTING] Generated OTP for student ${email}: ${otp}`);
         // Queue OTP email
-        await sendNotification('STUDENT_REGISTRATION', {
+        sendNotification('STUDENT_REGISTRATION', {
             email,
             fullName,
             otp
@@ -234,7 +234,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
             delete memoryCache[`otp:${email}`];
         }
         // Queue Welcome / Verified notification
-        await sendNotification('OTP_VERIFICATION', { email });
+        sendNotification('OTP_VERIFICATION', { email });
         res.json({ message: 'Email verified successfully. Account is now active.' });
     }
     catch (err) {
@@ -261,7 +261,7 @@ app.post('/api/auth/resend-otp', async (req, res) => {
         await setCache(`otp:${email}`, otp, 600); // 10 minutes expiry
         console.log(`[TESTING] Re-generated OTP for student ${email}: ${otp}`);
         // Queue OTP email
-        await sendNotification('STUDENT_REGISTRATION', {
+        sendNotification('STUDENT_REGISTRATION', {
             email,
             fullName: user.full_name,
             otp
@@ -297,7 +297,7 @@ app.post('/api/auth/login', async (req, res) => {
             // Re-send OTP if needed
             const otp = Math.floor(100000 + Math.random() * 900000).toString();
             await setCache(`otp:${email}`, otp, 600);
-            await sendNotification('STUDENT_REGISTRATION', {
+            sendNotification('STUDENT_REGISTRATION', {
                 email: user.email,
                 fullName: user.full_name,
                 otp
@@ -418,7 +418,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         await setCache(`reset_otp:${email}`, otp, 600); // 10 minutes
         console.log(`[TESTING] Generated Reset Password OTP for ${email}: ${otp}`);
-        await sendNotification('PASSWORD_RESET', {
+        sendNotification('PASSWORD_RESET', {
             email,
             fullName: user.full_name,
             otp
