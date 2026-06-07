@@ -1024,29 +1024,11 @@ export default function App() {
         loadAdminDashboard();
       } else {
         const errorData = await res.json();
-        throw new Error(errorData.error || `Trainer API returned status ${res.status}`);
+        showToast(errorData.error || `Trainer API returned status ${res.status}`, 'error');
       }
     } catch (err: any) {
       console.error("Trainer error:", err);
-      const mockT = {
-        id: editingTrainerId || `trainer-${Date.now()}`,
-        name: trainerForm.name,
-        email: trainerForm.email,
-        phone: trainerForm.phone,
-        specialization: trainerForm.specialization,
-        college_id: trainerForm.collegeId,
-        batch_id: trainerForm.batchId,
-        college_name: adminColleges.find(c => c.id === trainerForm.collegeId)?.name || 'Default College',
-        batch_name: adminBatches.find(b => b.id === trainerForm.batchId)?.name || 'Default Batch'
-      };
-      if (editingTrainerId) {
-        setAdminTrainers(prev => prev.map(t => t.id === editingTrainerId ? mockT : t));
-      } else {
-        setAdminTrainers(prev => [...prev, mockT]);
-      }
-      setTrainerForm({ name: '', email: '', phone: '', specialization: '', collegeId: '', batchId: '' });
-      setEditingTrainerId(null);
-      showToast(editingTrainerId ? 'Trainer updated successfully (Simulated)' : 'Trainer added successfully (Simulated)');
+      showToast(err.message || 'A network error occurred while saving the trainer', 'error');
     }
   };
 

@@ -736,6 +736,9 @@ app.post('/api/admin/trainers', authenticateAdmin, async (req, res) => {
         res.status(201).json(result.rows[0]);
     }
     catch (err) {
+        if (err.code === '23505') {
+            return res.status(400).json({ error: 'A trainer with this email already exists' });
+        }
         res.status(500).json({ error: err.message });
     }
 });
@@ -755,6 +758,9 @@ app.put('/api/admin/trainers/:id', authenticateAdmin, async (req, res) => {
         res.json(result.rows[0]);
     }
     catch (err) {
+        if (err.code === '23505') {
+            return res.status(400).json({ error: 'A trainer with this email already exists' });
+        }
         res.status(500).json({ error: err.message });
     }
 });
