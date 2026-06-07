@@ -23,7 +23,7 @@ This guide details the steps to set up a Twilio SendGrid account, verify your se
 3. Click the **Create API Key** button in the top right.
 4. Fill in the details:
    * **API Key Name**: `Clahan Academy Notification Service`
-   * **API Key Permissions**: 
+   * **API Key Permissions**:
      * Select **Restricted Access** (Recommended for security).
      * Scroll down to **Mail Send** and slide it to **Full Access**. (Leave other settings disabled to prevent leak risks).
 5. Click **Create & View**.
@@ -36,38 +36,52 @@ This guide details the steps to set up a Twilio SendGrid account, verify your se
 You must supply the API key and verified sender email to the `notification-service`.
 
 ### Option A: Local Dev Configuration
+
 If you run the microservices locally via `npm run dev`:
+
 1. Create or open the `.env` file in the **`notification-service`** directory.
 2. Add the following lines:
+
    ```env
    SENDGRID_API_KEY=SG.your_actual_api_key_here
    SENDGRID_FROM=your_verified_sender_email@domain.com
    ```
+
 3. Restart the `notification-service` server.
 
 ### Option B: Docker Compose Configuration
+
 If you deploy using `docker-compose.yml`:
+
 1. Open a terminal on your host machine.
 2. Set the environment variables on the host system:
    * **Windows (PowerShell)**:
+
      ```powershell
      $env:SENDGRID_API_KEY="SG.your_actual_api_key_here"
      $env:SENDGRID_FROM="your_verified_sender_email@domain.com"
      ```
+
    * **Windows (CMD)**:
+
      ```cmd
      set SENDGRID_API_KEY=SG.your_actual_api_key_here
      set SENDGRID_FROM=your_verified_sender_email@domain.com
      ```
+
    * **Linux/macOS**:
+
      ```bash
      export SENDGRID_API_KEY="SG.your_actual_api_key_here"
      export SENDGRID_FROM="your_verified_sender_email@domain.com"
      ```
+
 3. Launch the container stack:
+
    ```bash
    docker-compose up --build -d
    ```
+
    Docker Compose will automatically inject these variables into the `notification-service` container as configured.
 
 ---

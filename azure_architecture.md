@@ -1,6 +1,6 @@
 # Production-Grade Azure Architecture: Clahan Academy
 
-This document outlines a secure, scalable, reliable, and cost-effective deployment architecture on Microsoft Azure for the Clahan Academy assessment platform. 
+This document outlines a secure, scalable, reliable, and cost-effective deployment architecture on Microsoft Azure for the Clahan Academy assessment platform.
 
 ---
 
@@ -75,22 +75,26 @@ graph TD
 ## 2. Core Architectural Pillars
 
 ### 🔒 Security & Compliance
+
 * **Zero Trust Network Isolation**: All backend microservices, PostgreSQL databases, and Redis instances are deployed inside a private **Azure Virtual Network (VNet)**. They cannot be accessed directly from the public internet.
 * **Edge Protection (WAF)**: **Azure Front Door** with integrated **Web Application Firewall (WAF)** protects the endpoints against OWASP Top 10 vulnerabilities, DDoS attacks, and rate limits API requests.
 * **Identity & Access Management (IAM)**: Use **Azure Active Directory (Microsoft Entra ID)** and **Managed Identities** for Azure resources. This eliminates the need to hardcode database credentials or secrets in application configurations.
 * **Secret Management**: All application secrets (JWT keys, SendGrid API keys, database connection strings) are stored in **Azure Key Vault (AKV)** and resolved at container startup using system-assigned Managed Identities.
 
 ### 📈 Scalability
+
 * **Serverless Container Scaling**: Microservices are hosted on **Azure Container Apps (ACA)**. Powered by KEDA (Kubernetes Event-driven Autoscaling), services auto-scale from `0` to `N` replicas based on HTTP request concurrency or CPU/memory load.
 * **Global Static Distribution**: The React frontend is deployed to **Azure Static Web Apps (SWA)**, which automatically distributes static files globally via Azure's CDN edge locations, reducing load times.
 * **Elastic Data Tier**: **Azure Database for PostgreSQL (Flexible Server)** supports vertical scaling of compute (vCores) and storage IOPS to handle heavy exam traffic dynamically.
 
 ### ⚙️ Reliability & High Availability
+
 * **Zone Redundancy**: Deploy ACA and PostgreSQL in multi-zone configurations. If one Azure data center zone suffers an outage, traffic is automatically routed to the surviving zones.
 * **Self-Healing Containers**: Liveness and readiness health probes check container health. Bad containers are automatically terminated and replaced.
 * **Managed Backups**: PostgreSQL Flexible Server takes automated, zone-redundant snapshots daily with point-in-time recovery (PITR) up to 35 days.
 
 ### 💰 Cost Effectiveness
+
 * **Autoscale to Zero**: Azure Container Apps environment is configured to scale down to 0 instances during idle hours (e.g., late nights/weekends) for services like `admin-service`, `student-service`, and `proctoring-service`, reducing compute costs to zero.
 * **Serverless Frontends**: Azure Static Web Apps has an extremely generous free tier and low-cost production pricing.
 * **Azure Database for PostgreSQL Burstable Tier**: Ideal for development or low-load production, allowing compute to burst when needed without paying for high-performance virtual cores continuously.
@@ -118,14 +122,18 @@ graph TD
 ## 4. Security & Compliance Deep Dive
 
 ### 1. Networking Strategy
+
 To block public access to backend resources:
+
 * Deploy a single VNet with two main subnets:
   * **Subnet-A (Container Apps)**: Deploys the ACA environment with a configuration specifying `internal` ingress. Microservices can call each other via internal URLs (e.g. `http://exam-service.internal`).
   * **Subnet-B (Private Link)**: Houses PostgreSQL and Redis. Accessible only from Subnet-A via **Azure Private Link** (Private Endpoints).
 * Public traffic enters **only** via Azure Front Door, which forwards requests to the API gateway Container App (`auth-service` / `admin-service` / etc.) using secure origin rules (validating that the header contains the Front Door's unique ID).
 
 ### 2. IAM & Identity (Passwordless Setup)
+
 Instead of putting credentials in code:
+
 ```env
 # Don't use this in production:
 DATABASE_URL=postgres://postgres:postgres@postgres:5432/clahan
@@ -133,6 +141,7 @@ DATABASE_URL=postgres://postgres:postgres@postgres:5432/clahan
 # Recommended Production Configuration:
 DATABASE_URL=Server=tcp:clahan-db.postgres.database.azure.com;Database=clahan;Port=5432;Authentication=ActiveDirectory;
 ```
+
 Configure Azure PostgreSQL to accept connection tokens generated via the microservice container's **System-Assigned Managed Identity**. Azure handles rotation of these identities automatically.
 
 ---
@@ -143,13 +152,15 @@ To prevent budget bloat, use this configuration roadmap:
 
 1. **Static Web Apps (Frontend)**: Free tier covers SSL, hosting, and up to 100 GB bandwith/month.
 2. **Container Apps Idle Scaling**:
+
    ```yaml
    # Scale-down definition in Terraform/Bicep
    scale:
      minReplicas: 0  # ACA scales down to 0 if no requests are received for 10 minutes
      maxReplicas: 10
    ```
-3. **LLM Execution Optimization**: Self-hosting a GPU VM on Azure costs upwards of `$150-$500/month` running 24/7. 
+
+3. **LLM Execution Optimization**: Self-hosting a GPU VM on Azure costs upwards of `$150-$500/month` running 24/7.
    * **Dev/Test**: Configure `ai-service` to use its **built-in rule-based fallback** or run Ollama locally.
    * **Prod**: Hook `ai-service` into **Azure AI Studio** hosting serverless **Phi-3-mini** or **GPT-4o-mini** models. These are charged on a pay-per-token basis (approximately `$0.15` per million tokens), costing pennies per day for standard usage volumes.
 
@@ -179,17 +190,20 @@ sequenceDiagram
 While Azure Container Apps (ACA) is recommended for its simplicity and scale-to-zero cost efficiency, **Azure Kubernetes Service (AKS)** is a viable alternative if the platform grows or requires custom cloud-agnostic orchestrations.
 
 ### Pros (Advantages of AKS)
+
 * **Customizability & Ecosystem Control**: Full access to the Kubernetes control plane, allowing custom CRDs, service meshes (e.g., Istio, Linkerd), and custom ingress controllers (e.g., Nginx).
 * **Familiarity**: Zero cloud vendor lock-in. The same Helm charts or manifests can run on AWS (EKS) or Google Cloud (GKE).
 * **Optimized GPU Node Pools**: Dynamic provisioning of GPU nodes using AKS node pools, enabling native scheduling of deep-learning models (YOLO, face recognition, Ollama) directly on GPU instances only when workloads demand it.
 * **Granular Network Control**: Use of Cilium or Azure CNI for advanced network policies and fine-grained network routing.
 
 ### Cons (Disadvantages of AKS)
+
 * **High Operational Overhead**: Requires managing nodes, networking plugins, certificates, ingress controller configurations, and regular Kubernetes API version updates.
 * **No Scale-to-Zero for Control Plane**: Unlike ACA, the cluster's System Node Pool must run continuously (at least 1-2 system nodes), costing money even if the application is completely idle.
 * **Complexity of Configuration**: Deploying autoscaling (KEDA/HPA), secret injection (Secret Store CSI Driver), and log aggregation requires installing and maintaining additional open-source operators.
 
 ### Key Considerations for AKS Deployment
+
 * **System vs. User Node Pools**: Use a small, cheap node pool (`DS2_v2` instances) for system pods (CoreDNS, Metrics Server) and auto-scaling GPU/CPU node pools for the application microservices.
 * **Ingress and TLS**: Deploy `ingress-nginx` with `cert-manager` for automated Let's Encrypt certificates, or hook it to an Azure Application Gateway (using AGIC - App Gateway Ingress Controller) for enterprise-grade WAF.
 * **Secret Injection**: Use the **Azure Key Vault Provider for Secrets Store CSI Driver** to mount secrets as volumes into pod containers instead of storing them in Kubernetes Secret resources.
@@ -202,6 +216,7 @@ While Azure Container Apps (ACA) is recommended for its simplicity and scale-to-
 To ensure isolation and enterprise-grade security, the network architecture is structured around a single Virtual Network (VNet) divided into distinct subnets based on role, traffic classification, and security delegation.
 
 ### VNet IP Address Scheme and Subnet Allocation
+
 * **VNet Address Space**: `10.0.0.0/16` (65,536 available IP addresses)
 
 | Subnet Name | CIDR Range | Delegated To / Dedicated Service | Resources Placed | Network Security Group (NSG) Policy |
@@ -265,6 +280,7 @@ graph TD
 If deploying on Azure Kubernetes Service (AKS) instead of Azure Container Apps (ACA), the network architecture shifts to support node pools, pod networking, and Kubernetes ingress controllers.
 
 ### AKS VNet IP Address Scheme and Subnet Allocation
+
 * **VNet Address Space**: `10.240.0.0/16` (65,536 available IP addresses)
 
 | Subnet Name | CIDR Range | Delegated To / Dedicated Service | Resources Placed | Network Security Group (NSG) Policy |
@@ -327,12 +343,13 @@ graph TD
 
 ## 10. Disaster Recovery (DR) & Business Continuity Plan
 
-To ensure Clahan Academy remains operational during regional Azure outages, the infrastructure implements an **Active-Passive Multi-Region Disaster Recovery** strategy. 
+To ensure Clahan Academy remains operational during regional Azure outages, the infrastructure implements an **Active-Passive Multi-Region Disaster Recovery** strategy.
 
 * **Primary Region**: East US (All active user traffic).
 * **Secondary Region**: West US (Paired hot-standby replica).
 
 ### Disaster Recovery Objectives
+
 * **Recovery Time Objective (RTO)**: $< 15$ minutes (time to detect outage and fail over compute/traffic).
 * **Recovery Point Objective (RPO)**: $< 5$ seconds (maximum potential loss of active exam submissions).
 
@@ -370,4 +387,3 @@ graph TD
     PG_Primary -->|GeoReplication_RPO_5s| PG_Replica
     ACA_Standby -->|ReadWrite_Promoted| PG_Replica
 ```
-
