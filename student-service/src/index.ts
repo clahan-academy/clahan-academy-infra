@@ -279,7 +279,7 @@ app.get('/api/student/trainers', authenticateStudent, async (req: AuthenticatedR
     }
     const { college_id } = userResult.rows[0];
     const result = await query(
-      `SELECT t.id, t.name, t.email, t.phone, t.specialization, b.name as batch_name
+      `SELECT t.id, t.name, t.email, t.phone, t.specialization, t.batch_id, b.name as batch_name
        FROM trainers t
        LEFT JOIN batches b ON t.batch_id = b.id
        WHERE t.college_id = $1

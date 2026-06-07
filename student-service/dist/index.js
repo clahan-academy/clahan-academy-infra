@@ -258,7 +258,7 @@ app.get('/api/student/trainers', authenticateStudent, async (req, res) => {
             return res.status(404).json({ error: 'Student profile not found' });
         }
         const { college_id } = userResult.rows[0];
-        const result = await query(`SELECT t.id, t.name, t.email, t.phone, t.specialization, b.name as batch_name
+        const result = await query(`SELECT t.id, t.name, t.email, t.phone, t.specialization, t.batch_id, b.name as batch_name
        FROM trainers t
        LEFT JOIN batches b ON t.batch_id = b.id
        WHERE t.college_id = $1
