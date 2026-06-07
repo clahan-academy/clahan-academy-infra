@@ -4139,7 +4139,7 @@ export default function App() {
                               <td>{ex.duration_minutes} Mins / {ex.cutoff_percentage}%</td>
                               <td>
                                 <div className="truncate max-w-[120px]" title={ex.college_name}>{ex.college_name}</div>
-                                <div className="text-[10px] text-muted-foreground mt-0.5">{ex.department_name} - {ex.year}</div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5">{ex.batch_name ? `Batch: ${ex.batch_name}` : `${ex.department_name} - ${ex.year}`}</div>
                               </td>
                               <td>
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${ex.is_published ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800'}`}>
