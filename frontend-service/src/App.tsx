@@ -2271,19 +2271,30 @@ export default function App() {
       )}
       
       {/* Toast Alert Engine */}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2.5 w-full max-w-md px-4 pointer-events-none">
         {toasts.map(t => (
-          <div key={t.id} className={`flex items-center gap-2 p-4 rounded-xl shadow-lg border backdrop-blur-md transition-all animate-bounce ${
-            t.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' :
-            t.type === 'error' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30' :
-            t.type === 'warning' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' :
-            'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30'
-          }`}>
-            {t.type === 'success' && <CheckCircle className="h-5 w-5" />}
-            {t.type === 'error' && <AlertTriangle className="h-5 w-5" />}
-            {t.type === 'warning' && <AlertTriangle className="h-5 w-5" />}
-            {t.type === 'info' && <Bell className="h-5 w-5" />}
-            <span className="text-sm font-semibold">{t.message}</span>
+          <div 
+            key={t.id} 
+            className={`pointer-events-auto flex items-center justify-between gap-3.5 pl-4 pr-3 py-3 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] border backdrop-blur-xl transition-all duration-300 animate-toast w-full max-w-sm ${
+              t.type === 'success' ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/20' :
+              t.type === 'error' ? 'bg-rose-500/10 text-rose-800 dark:text-rose-300 border-rose-500/20' :
+              t.type === 'warning' ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20' :
+              'bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 border-indigo-500/20'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {t.type === 'success' && <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />}
+              {t.type === 'error' && <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0" />}
+              {t.type === 'warning' && <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />}
+              {t.type === 'info' && <Bell className="h-5 w-5 text-indigo-500 shrink-0" />}
+              <span className="text-[13px] font-semibold tracking-wide leading-tight">{t.message}</span>
+            </div>
+            <button 
+              onClick={() => setToasts(prev => prev.filter(item => item.id !== t.id))}
+              className="p-1 rounded-lg hover:bg-slate-200/30 dark:hover:bg-slate-800/30 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         ))}
       </div>
