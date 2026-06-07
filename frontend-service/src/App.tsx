@@ -3007,7 +3007,7 @@ export default function App() {
                     <label className="text-xs font-semibold text-muted-foreground">Batch {batches.length > 0 ? '*' : '(Optional)'}</label>
                     <select 
                       value={regForm.batchId} 
-                      onChange={e => setRegForm({...regForm, batchId: e.target.value})} 
+                      onChange={e => setRegForm({...regForm, batchId: e.target.value, trainerId: ''})} 
                       className="w-full p-3 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-indigo-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                       required={batches.length > 0}
                       disabled={!regForm.collegeId}
@@ -3025,7 +3025,14 @@ export default function App() {
                       disabled={!regForm.collegeId}
                     >
                       <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select Trainer</option>
-                      {registerTrainers.map(t => <option key={t.id} value={t.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{t.name}</option>)}
+                      {registerTrainers
+                        .filter(t => {
+                          if (regForm.batchId) {
+                            return (t.batch_id === regForm.batchId || t.batchId === regForm.batchId);
+                          }
+                          return true;
+                        })
+                        .map(t => <option key={t.id} value={t.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{t.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -3421,7 +3428,7 @@ export default function App() {
                         <label className="text-xs font-semibold text-muted-foreground">Academic Batch (Change Batch)</label>
                         <select
                           value={batchUpdate}
-                          onChange={e => setBatchUpdate(e.target.value)}
+                          onChange={e => { setBatchUpdate(e.target.value); setTrainerUpdate(''); }}
                           className="w-full p-3.5 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-indigo-500"
                         >
                           <option value="">No Batch Assigned</option>
@@ -3442,9 +3449,16 @@ export default function App() {
                           className="w-full p-3.5 mt-1 border border-slate-200 dark:border-slate-800 rounded-xl text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-indigo-500"
                         >
                           <option value="">No Trainer Assigned</option>
-                          {studentTrainers.map(t => (
-                            <option key={t.id} value={t.id}>{t.name} {t.specialization ? `(${t.specialization})` : ''}</option>
-                          ))}
+                          {studentTrainers
+                            .filter(t => {
+                              if (batchUpdate) {
+                                return (t.batch_id === batchUpdate || t.batchId === batchUpdate);
+                              }
+                              return true;
+                            })
+                            .map(t => (
+                              <option key={t.id} value={t.id}>{t.name} {t.specialization ? `(${t.specialization})` : ''}</option>
+                            ))}
                         </select>
                         <p className="text-[10px] text-muted-foreground mt-1.5">
                           Currently assigned: <span className="font-bold text-indigo-600 dark:text-indigo-400">{currentUser.trainer_name || currentUser.trainerName || 'None'}</span>
@@ -4490,7 +4504,7 @@ export default function App() {
                           <label className="text-xs font-semibold text-muted-foreground">Batch (Optional)</label>
                           <select 
                             value={examForm.batchId || ''} 
-                            onChange={e => setExamForm({...examForm, batchId: e.target.value})} 
+                            onChange={e => setExamForm({...examForm, batchId: e.target.value, trainerId: ''})} 
                             className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 mt-1"
                             disabled={!examForm.collegeId}
                           >
@@ -4508,7 +4522,14 @@ export default function App() {
                           >
                             <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Select Trainer</option>
                             {adminTrainers
-                              .filter(t => t.college_id === examForm.collegeId || t.collegeId === examForm.collegeId)
+                              .filter(t => {
+                                const matchCollege = (t.college_id === examForm.collegeId || t.collegeId === examForm.collegeId);
+                                if (!matchCollege) return false;
+                                if (examForm.batchId) {
+                                  return (t.batch_id === examForm.batchId || t.batchId === examForm.batchId);
+                                }
+                                return true;
+                              })
                               .map(t => <option key={t.id} value={t.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">{t.name} ({t.batch_name || 'General'})</option>)}
                           </select>
                         </div>
