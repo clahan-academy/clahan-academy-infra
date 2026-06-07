@@ -153,7 +153,7 @@ app.use((req, res, next) => {
 });
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000,
-    max: 200,
+    max: parseInt(process.env.RATE_LIMIT_MAX || '10000'),
     validate: { trustProxy: false },
 });
 app.use(limiter);
@@ -333,11 +333,13 @@ app.get('/api/admin/students', authenticateAdmin, async (req, res) => {
     try {
         const result = await query(`
       SELECT u.id, u.email, u.full_name, u.phone, u.roll_number, u.year, u.status, u.email_verified, u.created_at,
-             c.name as college_name, d.name as department_name, b.name as batch_name, u.college_id, u.department_id, u.batch_id
+             c.name as college_name, d.name as department_name, b.name as batch_name, u.college_id, u.department_id, u.batch_id,
+             u.trainer_id, t.name as trainer_name
       FROM users u
       LEFT JOIN colleges c ON u.college_id = c.id
       LEFT JOIN departments d ON u.department_id = d.id
       LEFT JOIN batches b ON u.batch_id = b.id
+      LEFT JOIN trainers t ON u.trainer_id = t.id
       WHERE u.role = 'student'
       ORDER BY u.created_at DESC
     `);
@@ -552,11 +554,13 @@ app.delete('/api/admin/students/:id', authenticateAdmin, async (req, res) => {
 app.put('/api/admin/students/:id', authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { fullName, email, phone, rollNumber, collegeId, departmentId, batchId, year, status } = req.body;
-        const check = await query('SELECT id FROM users WHERE id = $1 AND role = \'student\'', [id]);
+        const { fullName, email, phone, rollNumber, collegeId, departmentId, batchId, year, status, trainerId } = req.body;
+        const check = await query('SELECT id, batch_id, trainer_id FROM users WHERE id = $1 AND role = \'student\'', [id]);
         if (check.rows.length === 0) {
             return res.status(404).json({ error: 'Student not found' });
         }
+        const hasBatchId = 'batchId' in req.body;
+        const hasTrainerId = 'trainerId' in req.body;
         const result = await query(`UPDATE users
        SET full_name = COALESCE($1, full_name),
            email = COALESCE($2, email),
@@ -566,8 +570,21 @@ app.put('/api/admin/students/:id', authenticateAdmin, async (req, res) => {
            department_id = COALESCE($6, department_id),
            batch_id = $7,
            year = COALESCE($8, year),
-           status = COALESCE($9, status)
-       WHERE id = $10 RETURNING *`, [fullName, email, phone, rollNumber, collegeId, departmentId, batchId || null, year, status, id]);
+           status = COALESCE($9, status),
+           trainer_id = $10
+       WHERE id = $11 RETURNING *`, [
+            fullName,
+            email,
+            phone,
+            rollNumber,
+            collegeId,
+            departmentId,
+            hasBatchId ? (batchId || null) : check.rows[0].batch_id,
+            year,
+            status,
+            hasTrainerId ? (trainerId || null) : check.rows[0].trainer_id,
+            id
+        ]);
         res.json({ message: 'Student updated successfully', student: result.rows[0] });
     }
     catch (err) {

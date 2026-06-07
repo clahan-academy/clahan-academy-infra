@@ -125,7 +125,7 @@ app.use((req, res, next) => {
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: parseInt(process.env.RATE_LIMIT_MAX || '10000'),
   validate: { trustProxy: false },
 });
 app.use(limiter);

@@ -74,7 +74,7 @@ app.use((req, res, next) => {
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: parseInt(process.env.RATE_LIMIT_MAX || '10000'), // limit each IP to 10000 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false },
