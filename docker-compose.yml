@@ -90,10 +90,13 @@ services:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/clahan
       JWT_ACCESS_SECRET: super_secret_access_token_key
       AI_SERVICE_URL: http://ai-service:8000
+      JUDGE0_URL: http://judge0-api:2358
     depends_on:
       postgres:
         condition: service_healthy
       ai-service:
+        condition: service_started
+      judge0-api:
         condition: service_started
 
   proctoring-service:
@@ -143,9 +146,14 @@ services:
     environment:
       PORT: 8000
       OLLAMA_URL: http://ollama-service:11434
-      YOLO_URL: http://yolo-service:8081
-      FACE_URL: http://face-service:8082
-      OCR_URL: http://ocr-service:8083
+
+  ollama-service:
+    image: ollama/ollama:latest
+    container_name: clahan-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
 
   frontend-service:
     build:
@@ -161,6 +169,69 @@ services:
       - exam-service
       - proctoring-service
 
+  # --- JUDGE0 COMPILATION STACK ---
+  judge0-db:
+    image: postgres:16-alpine
+    container_name: clahan-judge0-db
+    environment:
+      POSTGRES_DB: judge0
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0_password
+    volumes:
+      - judge0-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d judge0 -U judge0"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  judge0-redis:
+    image: redis:7-alpine
+    container_name: clahan-judge0-redis
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  judge0-api:
+    image: judge0/judge0:latest
+    container_name: clahan-judge0-api
+    ports:
+      - "2358:2358"
+    environment:
+      REDIS_HOST: judge0-redis
+      REDIS_PORT: 6379
+      POSTGRES_HOST: judge0-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: judge0
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0_password
+    depends_on:
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
+
+  judge0-worker:
+    image: judge0/judge0:latest
+    container_name: clahan-judge0-worker
+    privileged: true # Required for compiler sandbox runtime isolation
+    environment:
+      REDIS_HOST: judge0-redis
+      REDIS_PORT: 6379
+      POSTGRES_HOST: judge0-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: judge0
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0_password
+    depends_on:
+      judge0-api:
+        condition: service_started
+
 volumes:
   pgdata:
   redisdata:
+  ollama-data:
+  judge0-db-data:

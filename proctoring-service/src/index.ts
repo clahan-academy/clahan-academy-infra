@@ -150,14 +150,16 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  // Client emits a proctor violation event
-  socket.on('proctor-event', async (data: { eventType: string; details: string; severity: 'warning' | 'critical' }) => {
-    const session = activeSessions[socket.id];
-    if (!session || session.role !== 'student') return;
-
-    const { attemptId, studentId, examId } = session;
-    const { eventType, details, severity } = data;
-
+  // Helper function to handle a proctor violation
+  async function processViolation(
+    attemptId: string,
+    studentId: string,
+    examId: string,
+    eventType: string,
+    details: string,
+    severity: 'warning' | 'critical',
+    socket: Socket
+  ) {
     try {
       // Save violation log to database
       await query(
@@ -263,18 +265,70 @@ io.on('connection', (socket: Socket) => {
     } catch (err: any) {
       console.error('Proctor event handler error:', err);
     }
-  });
+  }
 
-  // Client streams camera frame (low resolution base64 JPEG)
-  socket.on('proctor-frame', (data: { image: string }) => {
+  // Client emits a proctor violation event
+  socket.on('proctor-event', async (data: { eventType: string; details: string; severity: 'warning' | 'critical' }) => {
     const session = activeSessions[socket.id];
     if (!session || session.role !== 'student') return;
 
+    const { attemptId, studentId, examId } = session;
+    const { eventType, details, severity } = data;
+
+    await processViolation(attemptId, studentId, examId, eventType, details, severity, socket);
+  });
+
+  // Client streams camera frame (low resolution base64 JPEG)
+  socket.on('proctor-frame', async (data: { image: string }) => {
+    const session = activeSessions[socket.id];
+    if (!session || session.role !== 'student') return;
+
+    const { attemptId, studentId, examId } = session;
+
     // Broadcast student webcam frame to admin monitor room
     io.to('admin-monitor').emit('student-frame', {
-      attemptId: session.attemptId,
+      attemptId: attemptId,
       image: data.image
     });
+
+    // Send the frame to the AI service for analysis
+    try {
+      const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://ai-service:8000';
+      const params = new URLSearchParams();
+      params.append('frame', data.image);
+      params.append('attemptId', attemptId);
+
+      const response = await fetch(`${AI_SERVICE_URL}/api/ai/proctor/frame`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: params
+      });
+
+      if (response.ok) {
+        const result: any = await response.json();
+        if (result.violations && Array.isArray(result.violations)) {
+          for (const violation of result.violations) {
+            const severity = (violation === 'MOBILE_PHONE_DETECTED' || 
+                              violation === 'BOOK_DETECTED' || 
+                              violation === 'MULTIPLE_FACES_DETECTED') ? 'critical' : 'warning';
+            
+            await processViolation(
+              attemptId,
+              studentId,
+              examId,
+              violation,
+              `AI detected infraction: ${violation}`,
+              severity,
+              socket
+            );
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to call AI service for frame analysis:', err.message);
+    }
   });
 
   socket.on('disconnect', () => {

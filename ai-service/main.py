@@ -9,6 +9,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
 from PIL import Image
+import cv2
+import numpy as np
+
+# Load YOLOv8 if available
+yolo_model = None
+try:
+    from ultralytics import YOLO
+    # Loads local or downloads small YOLOv8 nano model
+    yolo_model = YOLO("yolov8n.pt")
+except Exception as e:
+    print(f"Error loading YOLOv8: {e}")
+
+# Load OpenCV face detector
+face_cascade = None
+try:
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+except Exception as e:
+    print(f"Error loading Face Cascade: {e}")
 
 app = FastAPI(title="Clahan Academy AI Service", version="2.0.0")
 
@@ -25,9 +43,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ai-service")
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama-service:11434")
-YOLO_URL = os.getenv("YOLO_URL", "http://yolo-service:8081")
-FACE_URL = os.getenv("FACE_URL", "http://face-service:8082")
-OCR_URL = os.getenv("OCR_URL", "http://ocr-service:8083")
 
 class FeedbackRequest(BaseModel):
     score: int
@@ -90,40 +105,35 @@ async def analyze_frame(
         img_bytes = base64.b64decode(frame)
         image = Image.open(io.BytesIO(img_bytes))
         
+        # Convert PIL Image to OpenCV format (BGR) for face detection
+        open_cv_image = np.array(image.convert("RGB"))
+        open_cv_image = open_cv_image[:, :, ::-1].copy() # Convert RGB to BGR
+        
         # Initialize default response
         face_count = 1
         objects_detected = []
         violations = []
-        notes_text = None
         
-        # 1. Query YOLO Container for objects (mobile phone, book, notes)
-        try:
-            files = {'file': ('frame.jpg', io.BytesIO(img_bytes), 'image/jpeg')}
-            yolo_res = requests.post(f"{YOLO_URL}/detect", files=files, timeout=2.0)
-            if yolo_res.status_code == 200:
-                objects_detected = yolo_res.json().get("objects", [])
-        except Exception:
-            # Fallback simulator: detect based on specific test tags in image metadata if any, or default to safe
-            pass
-
-        # 2. Query Face Recognition Container
-        try:
-            files = {'file': ('frame.jpg', io.BytesIO(img_bytes), 'image/jpeg')}
-            face_res = requests.post(f"{FACE_URL}/face-count", files=files, timeout=2.0)
-            if face_res.status_code == 200:
-                face_count = face_res.json().get("face_count", 1)
-        except Exception:
-            pass
-
-        # 3. Query Tesseract OCR Service if book/notes are detected
-        if "book" in objects_detected or "cell phone" in objects_detected:
+        # 1. Run YOLOv8 Object Detection (direct in-process)
+        if yolo_model is not None:
             try:
-                files = {'file': ('frame.jpg', io.BytesIO(img_bytes), 'image/jpeg')}
-                ocr_res = requests.post(f"{OCR_URL}/ocr", files=files, timeout=2.0)
-                if ocr_res.status_code == 200:
-                    notes_text = ocr_res.json().get("text", "")
-            except Exception:
-                pass
+                results = yolo_model(image, verbose=False)
+                for r in results:
+                    for c in r.boxes.cls:
+                        class_name = yolo_model.names[int(c)]
+                        objects_detected.append(class_name)
+            except Exception as e:
+                logger.error(f"YOLO detection error: {str(e)}")
+        
+        # 2. Run Face detection (direct in-process using Haar Cascade)
+        if face_cascade is not None:
+            try:
+                gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
+                faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4)
+                face_count = len(faces)
+            except Exception as e:
+                logger.error(f"Face detection error: {str(e)}")
+                face_count = 1
 
         # Evaluate violations
         if face_count == 0:
@@ -135,13 +145,11 @@ async def analyze_frame(
             violations.append("MOBILE_PHONE_DETECTED")
         if "book" in objects_detected:
             violations.append("BOOK_DETECTED")
-        if "notes" in objects_detected or (notes_text and len(notes_text.strip()) > 15):
-            violations.append("NOTES_DETECTED")
 
         return {
             "faceCount": face_count,
             "objectsDetected": objects_detected,
-            "ocrText": notes_text,
+            "ocrText": None,
             "violations": violations,
             "verified": (face_count == 1 and len(violations) == 0)
         }
@@ -156,3 +164,4 @@ async def analyze_frame(
             "violations": [],
             "verified": True
         }
+
