@@ -5865,7 +5865,15 @@ export default function App() {
                                       </div>
                                     </div>
                                   </div>
-                                                          <div className="bg-slate-900 px-4 py-2 border-b border-white/5 flex justify-between items-center">
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* IDE Editor */}
+                        <div className="flex flex-col rounded-xl border border-white/5 overflow-hidden">
+                          <div className="bg-slate-900 px-4 py-2 border-b border-white/5 flex justify-between items-center">
                             <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Compiler Language</span>
                             <select
                               value={codingSolutions[examCodings[activeQuestionIndex].id]?.language || examCodings[activeQuestionIndex].language}
