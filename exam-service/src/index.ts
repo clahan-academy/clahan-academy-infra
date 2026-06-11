@@ -1221,11 +1221,29 @@ app.get('/api/exams/student/attempts/:attemptId/result', authenticate, async (re
       mcqResponses: mcqResponses.rows,
       codingResponses: codingResponses.rows
     });
+// AI Coding Question Generation
+app.post('/api/exams/admin/generate-coding-question', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { topic, difficulty, language } = req.body;
+    if (!topic) {
+      return res.status(400).json({ error: 'Topic is required' });
+    }
+
+    const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://ai-service:8000';
+    const response = await axios.post(`${AI_SERVICE_URL}/api/ai/generate-question`, {
+      topic,
+      difficulty: difficulty || 'medium',
+      language: language || 'Python'
+    }, { timeout: 15000 });
+
+    res.json(response.data);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Failed to generate coding question:', err.message);
+    res.status(500).json({ error: 'AI Question Generation failed. Please try again or fill the details manually.' });
   }
 });
 
 app.listen(PORT, () => {
   console.log(`Exam Service listening on port ${PORT}`);
 });
+

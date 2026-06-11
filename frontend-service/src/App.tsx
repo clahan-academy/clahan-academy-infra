@@ -3,7 +3,7 @@ import {
   BookOpen, Code, Shield, Video, Bell, Settings, Award, Users, CheckCircle, AlertTriangle, 
   Trash2, Copy, Send, Download, Upload, Plus, Play, Check, Moon, Sun, ArrowRight, User, 
   LogOut, RefreshCw, Layers, Cpu, Laptop, Terminal, Mail, Phone, MapPin, Eye, EyeOff, Lock,
-  Maximize2, ShieldAlert, X
+  Maximize2, ShieldAlert, X, Sparkles
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import * as XLSX from 'xlsx';
@@ -5222,6 +5222,75 @@ export default function App() {
                       await addCodingQuestion(e);
                       setIsCodingModalOpen(false);
                     }} className="space-y-6">
+                      {/* AI QUESTION GENERATOR BOX */}
+                      <div className="bg-gradient-to-r from-indigo-50 to-indigo-100/30 dark:from-indigo-950/20 dark:to-slate-900/10 p-5 rounded-2xl border border-indigo-100 dark:border-indigo-950/50 space-y-3 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4.5 w-4.5 text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                          <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">AI Challenge Auto-Generator</h4>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed max-w-2xl">
+                          Type a high-level topic (e.g., "Check prime number", "Fibonacci sequence", "Verify BST", "Find array duplicates"). 
+                          The AI will automatically write the title, detailed markdown description, boilerplate code template, and test cases!
+                        </p>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Check if a number is prime" 
+                            id="ai-topic-input"
+                            className="flex-1 p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-indigo-500" 
+                          />
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const inputEl = document.getElementById('ai-topic-input') as HTMLInputElement;
+                              const topic = inputEl?.value?.trim();
+                              if (!topic) return showToast('Please enter a topic first', 'error');
+                              
+                              showToast('Generating question using AI...', 'info');
+                              try {
+                                const response = await fetch('/api/exams/admin/generate-coding-question', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                  },
+                                  body: JSON.stringify({
+                                    topic,
+                                    difficulty: codingForm.difficulty,
+                                    language: codingForm.language
+                                  })
+                                });
+                                if (response.ok) {
+                                  const qData = await response.json();
+                                  setCodingForm(prev => ({
+                                    ...prev,
+                                    title: qData.title || prev.title,
+                                    description: qData.description || prev.description,
+                                    starterCode: qData.starter_code || prev.starterCode
+                                  }));
+                                  if (qData.test_cases && Array.isArray(qData.test_cases)) {
+                                    setCodingTestCases(qData.test_cases.map((tc: any) => ({
+                                      input: tc.input || '',
+                                      expected_output: tc.expected_output || '',
+                                      isHidden: tc.is_hidden || false
+                                    })));
+                                  }
+                                  showToast('Question details loaded into the editor below!', 'success');
+                                } else {
+                                  const errData = await response.json();
+                                  showToast(errData.error || 'AI Generation failed', 'error');
+                                }
+                              } catch (err: any) {
+                                showToast(`Error generating question: ${err.message}`, 'error');
+                              }
+                            }}
+                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-sm"
+                          >
+                            <Sparkles className="h-4 w-4" /> Auto-Generate
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="text-xs font-bold text-muted-foreground">Challenge Title</label>
