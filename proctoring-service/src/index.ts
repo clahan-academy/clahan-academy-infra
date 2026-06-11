@@ -277,10 +277,17 @@ io.on('connection', (socket: Socket) => {
         console.log(`Attempt ${attemptId} auto-terminated due to: ${terminationReason}`);
       } else {
         // Send alert back to student if warning
-        socket.emit('proctor-warning', {
-          message: `Warning: ${eventType.replace(/_/g, ' ')} detected. Repeated actions will terminate your exam.`,
-          count: counts[eventType] || 1,
-        });
+        // Only warn for webcam events if consecutive count >= 3 to prevent transient false-positive notifications
+        const isWebcamEvent = ['MOBILE_PHONE_DETECTED', 'BOOK_DETECTED', 'MULTIPLE_FACES_DETECTED', 'NO_FACE_DETECTED'].includes(eventType);
+        const consec = consecutiveViolations[attemptId] || {};
+        const consecCount = consec[eventType] || 0;
+
+        if (!isWebcamEvent || consecCount >= 3) {
+          socket.emit('proctor-warning', {
+            message: `Warning: ${eventType.replace(/_/g, ' ')} detected. Repeated actions will terminate your exam.`,
+            count: isWebcamEvent ? consecCount : (counts[eventType] || 1),
+          });
+        }
       }
 
     } catch (err: any) {

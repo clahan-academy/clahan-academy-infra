@@ -50,6 +50,13 @@ const getLocalDatetimeString = () => {
   return (new Date(Date.now() - tzoffset)).toISOString().slice(0, 16);
 };
 
+const STARTER_TEMPLATES: Record<string, string> = {
+  'Python': 'import sys\n\ndef solve():\n    # Read input from standard input (stdin)\n    input_data = sys.stdin.read().strip()\n    if not input_data:\n        return\n    \n    # Write your logic here and print result to standard output (stdout)\n    print(input_data)\n\nif __name__ == "__main__":\n    solve()',
+  'Java': 'import java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        // Read input from standard input (stdin)\n        Scanner sc = new Scanner(System.in);\n        if (sc.hasNextLine()) {\n            String inputVal = sc.nextLine();\n            // Write your logic here and print to standard output (stdout)\n            System.out.println(inputVal);\n        }\n    }\n}',
+  'C++': '#include <iostream>\n#include <string>\nusing namespace std;\n\nint main() {\n    // Read input from standard input (stdin)\n    string input_val;\n    if (getline(cin, input_val)) {\n        // Write your logic here and print to standard output (stdout)\n        cout << input_val << endl;\n    }\n    return 0;\n}',
+  'JavaScript': 'const fs = require("fs");\n\nfunction solve() {\n    // Read input from standard input (stdin)\n    const inputVal = fs.readFileSync(0, "utf-8").trim();\n    // Write your logic here and print to standard output (stdout)\n    console.log(inputVal);\n}\n\nsolve();'
+};
+
 export default function App() {
   // Theme State
   const [darkMode, setDarkMode] = useState(() => {
@@ -2107,7 +2114,12 @@ export default function App() {
         body: JSON.stringify({ code: sol.code, language: sol.language, questionId })
       });
       const data = await res.json();
-      setCodeExecutionResults(data.results);
+      if (res.ok && data.results) {
+        setCodeExecutionResults(data.results);
+      } else {
+        showToast(data.error || 'Failed to run code sample', 'error');
+        setCodeExecutionResults([]);
+      }
     } catch (err) {
       // Simulation fallback if runner is offline
       setTimeout(() => {
@@ -2134,9 +2146,11 @@ export default function App() {
         },
         body: JSON.stringify({ code: sol.code, language: sol.language, questionId })
       });
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
-        showToast(`Coding submission saved. Passed: ${data.passedCount}/${data.totalCount}`);
+        showToast(`Coding submission saved. Passed: ${data.passedCount}/${data.totalCount}`, 'success');
+      } else {
+        showToast(data.error || 'Failed to submit code solution', 'error');
       }
     } catch (err) {
       showToast('Coding submission saved (Simulated).', 'success');
@@ -5851,34 +5865,33 @@ export default function App() {
                                       </div>
                                     </div>
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* IDE Editor */}
-                        <div className="flex flex-col rounded-xl border border-white/5 overflow-hidden">
-                          <div className="bg-slate-900 px-4 py-2 border-b border-white/5 flex justify-between items-center">
+                                                          <div className="bg-slate-900 px-4 py-2 border-b border-white/5 flex justify-between items-center">
                             <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Compiler Language</span>
                             <select
                               value={codingSolutions[examCodings[activeQuestionIndex].id]?.language || examCodings[activeQuestionIndex].language}
                               onChange={e => {
                                 const newLang = e.target.value;
                                 const qId = examCodings[activeQuestionIndex].id;
-                                const starterTemplates: Record<string, string> = {
-                                  'Python': 'def solve(input_val):\n    # Write your code here\n    pass',
-                                  'Java': 'import java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your code here\n    }\n}',
-                                  'C++': '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your code here\n    return 0;\n}',
-                                  'JavaScript': 'function solve(inputVal) {\n    // Write your code here\n    return null;\n}'
-                                };
+                                const currentVal = codingSolutions[qId];
+                                const currentCode = currentVal?.code || '';
+                                const currentLang = currentVal?.language || examCodings[activeQuestionIndex].language;
 
-                                if (confirm(`Change compiler language to ${newLang}? This will reset the workspace to the starter template for ${newLang}.`)) {
-                                  setCodingSolutions(prev => ({
-                                    ...prev,
-                                    [qId]: { code: starterTemplates[newLang] || '', language: newLang }
-                                  }));
-                                }
+                                // Auto-template override only if editor is currently empty or has default template/starter code
+                                const isTemplateOrEmpty = !currentCode.trim() || 
+                                  currentCode === 'def solve(input_val):\n    # Write your code here\n    pass' ||
+                                  currentCode.includes('Write your code here') || 
+                                  currentCode.includes('import java.util.*;') ||
+                                  currentCode.includes('#include <iostream>') ||
+                                  currentCode.includes('function solve(') ||
+                                  currentCode === examCodings[activeQuestionIndex].starter_code;
+
+                                setCodingSolutions(prev => ({
+                                  ...prev,
+                                  [qId]: { 
+                                    code: isTemplateOrEmpty ? (STARTER_TEMPLATES[newLang] || '') : currentCode, 
+                                    language: newLang 
+                                  }
+                                }));
                               }}
                               className="bg-slate-950 border border-slate-800 text-xs font-semibold px-2 py-1 rounded text-slate-200 outline-none focus:ring-1 focus:ring-indigo-500"
                             >
@@ -5887,6 +5900,23 @@ export default function App() {
                               <option value="C++">C++</option>
                               <option value="JavaScript">JavaScript</option>
                             </select>
+                          </div>
+                          <div className="bg-slate-950 px-4 py-1.5 border-b border-white/5 text-[9px] text-indigo-400 font-mono flex items-center justify-between">
+                            <span>💡 Read input from <strong>stdin</strong> & write output to <strong>stdout</strong></span>
+                            <button
+                              onClick={() => {
+                                const qId = examCodings[activeQuestionIndex].id;
+                                const lang = codingSolutions[qId]?.language || examCodings[activeQuestionIndex].language;
+                                setCodingSolutions(prev => ({
+                                  ...prev,
+                                  [qId]: { code: STARTER_TEMPLATES[lang] || '', language: lang }
+                                }));
+                                showToast('Reset editor to starter template.', 'info');
+                              }}
+                              className="text-[9px] text-slate-500 hover:text-indigo-400 font-semibold transition-all px-1.5 py-0.5 rounded border border-white/5 hover:border-indigo-500/30"
+                            >
+                              Reset Starter Code
+                            </button>
                           </div>
                           <textarea
                             value={codingSolutions[examCodings[activeQuestionIndex].id]?.code || ''}
