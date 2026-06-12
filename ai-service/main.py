@@ -253,7 +253,7 @@ async def analyze_frame(
                     classes_scores = row[4:]
                     class_id = np.argmax(classes_scores)
                     confidence = classes_scores[class_id]
-                     if confidence > 0.25:
+                    if confidence > 0.25:
                         class_name = CLASSES[class_id]
                         if class_name in ["cell phone", "book"]:
                             objects_detected.append(class_name)
