@@ -123,6 +123,9 @@ const consecutiveViolations: Record<string, Record<string, number>> = {};
 // Track first seen timestamps for duration-based violations (key: attemptId, value: Record<eventType, timestamp>)
 const violationStartTimes: Record<string, Record<string, number>> = {};
 
+// Track phone confidences in memory (key: attemptId, value: array of confidence strings)
+const phoneConfidences: Record<string, string[]> = {};
+
 io.on('connection', (socket: Socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
@@ -438,9 +441,7 @@ io.on('connection', (socket: Socket) => {
         }
         if (!currentViolations.includes('MOBILE_PHONE_DETECTED')) {
           consec['MOBILE_PHONE_DETECTED'] = 0;
-          if (violationStartTimes[attemptId]) {
-            violationStartTimes[attemptId]['phone_confidences'] = [];
-          }
+          phoneConfidences[attemptId] = [];
         }
         if (!currentViolations.includes('BOOK_DETECTED')) {
           consec['BOOK_DETECTED'] = 0;
@@ -511,12 +512,11 @@ io.on('connection', (socket: Socket) => {
               const confStr = (phoneConf * 100).toFixed(1);
               
               // Store confidence scores in memory to log them on the 5th frame
-              violationStartTimes[attemptId] = violationStartTimes[attemptId] || {};
-              violationStartTimes[attemptId]['phone_confidences'] = violationStartTimes[attemptId]['phone_confidences'] || [];
-              violationStartTimes[attemptId]['phone_confidences'].push(confStr);
-
+              phoneConfidences[attemptId] = phoneConfidences[attemptId] || [];
+              phoneConfidences[attemptId].push(confStr);
+              
               if (consecCount >= 5) {
-                const confList = violationStartTimes[attemptId]['phone_confidences'] || [];
+                const confList = phoneConfidences[attemptId] || [];
                 const confListStr = confList.slice(0, 5).map(c => c + '%').join(', ');
                 await processViolation(
                   attemptId,
@@ -528,7 +528,7 @@ io.on('connection', (socket: Socket) => {
                   socket,
                   data.image
                 );
-                violationStartTimes[attemptId]['phone_confidences'] = [];
+                phoneConfidences[attemptId] = [];
               } else {
                 // Do not log Fraud Event inside database yet; just show a caution warning to student
                 socket.emit('proctor-warning', {
