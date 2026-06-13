@@ -433,7 +433,9 @@ io.on('connection', (socket: Socket) => {
           trackingStatus: result.trackingStatus || 'Face Present',
           facePresent: !!result.facePresent,
           faceLost: !!result.faceLost,
-          faceRecovered: !!result.faceRecovered
+          faceRecovered: !!result.faceRecovered,
+          elapsedLost: result.elapsedLost || 0.0,
+          violations: result.violations || []
         });
 
         // Determine if face detection is currently losing/lost tracking

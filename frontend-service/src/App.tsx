@@ -260,6 +260,74 @@ export default function App() {
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, string>>({}); // { questionId: selectedOption }
   const [codingSolutions, setCodingSolutions] = useState<Record<string, { code: string; language: string }>>({}); // { questionId: { code, lang } }
   const [markedForReview, setMarkedForReview] = useState<Record<string, boolean>>({});
+
+  // Dev Debug Panel States
+  const [cameraConnected, setCameraConnected] = useState(false);
+  const [cameraStreamActive, setCameraStreamActive] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [faceConfidence, setFaceConfidence] = useState(0);
+  const [faceTrackingActive, setFaceTrackingActive] = useState(false);
+  const [lastFaceSeen, setLastFaceSeen] = useState<string>('N/A');
+  const [noFaceTimer, setNoFaceTimer] = useState(0);
+  const [activeFraudState, setActiveFraudState] = useState('Normal');
+  const [detectionFps, setDetectionFps] = useState(0);
+  const [debugLogs, setDebugLogs] = useState<Array<{ time: string; event: string }>>([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const lastFrameTimeRef = useRef<number | null>(null);
+
+  const logDebugEvent = useCallback((event: string) => {
+    const time = new Date().toLocaleTimeString();
+    setDebugLogs(prev => {
+      if (prev.length > 0 && prev[0].event === event) return prev;
+      return [{ time, event }, ...prev].slice(0, 100);
+    });
+    console.log(`[DEV DEBUG] ${time} - ${event}`);
+  }, []);
+
+  // Update camera statuses based on stream state
+  useEffect(() => {
+    setCameraConnected(!!cameraStream);
+    setCameraStreamActive(!!(cameraStream && cameraStream.active));
+  }, [cameraStream]);
+
+  // Enforce no blank exam screens
+  useEffect(() => {
+    if (currentPage === 'exam-env' && currentExam) {
+      const examType = currentExam.exam_type;
+      
+      // Determine what section we should actually be in
+      if (examType === 'coding' || (examMCQs.length === 0 && examCodings.length > 0)) {
+        if (selectedSection !== 'coding') {
+          setSelectedSection('coding');
+          setActiveQuestionIndex(0);
+        }
+      } else if (examType === 'mcq' || (examCodings.length === 0 && examMCQs.length > 0)) {
+        if (selectedSection !== 'mcq') {
+          setSelectedSection('mcq');
+          setActiveQuestionIndex(0);
+        }
+      } else if (examType === 'both') {
+        // Mixed exam: load first available section
+        if (examMCQs.length > 0) {
+          if (selectedSection !== 'mcq' && selectedSection !== 'coding') {
+            setSelectedSection('mcq');
+            setActiveQuestionIndex(0);
+          }
+        } else if (examCodings.length > 0) {
+          if (selectedSection !== 'coding') {
+            setSelectedSection('coding');
+            setActiveQuestionIndex(0);
+          }
+        }
+      }
+
+      // Ensure activeQuestionIndex is within bounds for the selected section
+      const questionsLength = selectedSection === 'mcq' ? examMCQs.length : examCodings.length;
+      if (questionsLength > 0 && (activeQuestionIndex < 0 || activeQuestionIndex >= questionsLength)) {
+        setActiveQuestionIndex(0);
+      }
+    }
+  }, [currentPage, currentExam, examMCQs.length, examCodings.length, selectedSection, activeQuestionIndex]);
   
   // Resizable Panel & Editor controls
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -2065,6 +2133,39 @@ export default function App() {
 
       if (verifyRes.ok) {
         const verifyData = await verifyRes.json();
+        
+        // Update debug states during verification step as well!
+        setFaceConfidence(verifyData.faceConfidence || 0);
+        setFaceTrackingActive(verifyData.trackingStatus !== 'Face Lost');
+        setNoFaceTimer(verifyData.elapsedLost || 0);
+        
+        // State Transition Logging for verification
+        setFaceDetected(prev => {
+          const present = verifyData.faceCount > 0;
+          if (prev !== present) {
+            logDebugEvent(present ? 'Face Detected' : 'Face Lost');
+          }
+          return present;
+        });
+
+        if (verifyData.faceCount > 0) {
+          setLastFaceSeen(new Date().toLocaleTimeString());
+        }
+        
+        let fraudState = 'Normal';
+        if (verifyData.violations && verifyData.violations.length > 0) {
+          fraudState = `Warning: ${verifyData.violations.join(', ')}`;
+        }
+        setActiveFraudState(fraudState);
+
+        // FPS calculation
+        const now = Date.now();
+        if (lastFrameTimeRef.current) {
+          const currentFps = 1000 / (now - lastFrameTimeRef.current);
+          setDetectionFps(parseFloat(currentFps.toFixed(1)));
+        }
+        lastFrameTimeRef.current = now;
+
         if (verifyData.verified && verifyData.faceCount === 1) {
           setFaceCheck(true);
           setHardwareProgress(100);
@@ -2283,14 +2384,67 @@ export default function App() {
 
       socket.on('connect', () => {
         socket.emit('join-exam', { token, attemptId, examId: currentExam?.id });
+        logDebugEvent('Exam Connected');
+      });
+
+      socket.on('proctor-status', (status: any) => {
+        // Calculate FPS
+        const now = Date.now();
+        if (lastFrameTimeRef.current) {
+          const diff = now - lastFrameTimeRef.current;
+          const currentFps = diff > 0 ? (1000 / diff) : 0;
+          setDetectionFps(parseFloat(currentFps.toFixed(1)));
+        }
+        lastFrameTimeRef.current = now;
+
+        setFaceConfidence(status.faceConfidence || 0);
+        setFaceTrackingActive(status.trackingStatus !== 'Face Lost');
+        
+        // Log State Changes
+        setFaceDetected(prevFaceDetected => {
+          if (prevFaceDetected !== status.facePresent) {
+            logDebugEvent(status.facePresent ? 'Face Detected' : 'Face Lost');
+            if (status.faceRecovered) {
+              logDebugEvent('Face Recovered');
+            }
+          }
+          return status.facePresent;
+        });
+
+        setNoFaceTimer(prevTimer => {
+          if (prevTimer === 0 && status.elapsedLost > 0) {
+            logDebugEvent('Timer Started');
+          } else if (prevTimer > 0 && status.elapsedLost === 0) {
+            logDebugEvent('Timer Reset');
+          }
+          return status.elapsedLost;
+        });
+
+        if (status.facePresent) {
+          setLastFaceSeen(new Date().toLocaleTimeString());
+        }
+
+        // Determine active fraud state
+        let fraudState = 'Normal';
+        if (status.violations && status.violations.length > 0) {
+          fraudState = `Warning: ${status.violations.join(', ')}`;
+          logDebugEvent(`Fraud Triggered: ${status.violations.join(', ')}`);
+        } else if (status.trackingStatus === 'Temporary Detection Loss') {
+          fraudState = 'Warning: Temporary Face Loss';
+        } else if (status.trackingStatus === 'Face Lost') {
+          fraudState = 'Critical: Face Lost';
+        }
+        setActiveFraudState(fraudState);
       });
 
       socket.on('proctor-warning', (alert: any) => {
         showToast(alert.message, 'warning');
         setProctorLogs(prev => [`[Warning] ${alert.message} (${new Date().toLocaleTimeString()})`, ...prev]);
+        logDebugEvent(`Warning: ${alert.message}`);
       });
 
       socket.on('exam-terminated', (data: any) => {
+        logDebugEvent(`Exam Terminated: ${data.reason}`);
         clearInterval(timerRef.current);
         alert(`Exam terminated automatically: ${data.reason}`);
         handleExamTermination(data.reason, data.autoSubmitted);
@@ -2403,6 +2557,18 @@ export default function App() {
     if (document.exitFullscreen && document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
+    // Reset Debug panel states
+    setCameraConnected(false);
+    setCameraStreamActive(false);
+    setFaceDetected(false);
+    setFaceConfidence(0);
+    setFaceTrackingActive(false);
+    setNoFaceTimer(0);
+    setActiveFraudState('Normal');
+    setDetectionFps(0);
+    setDebugLogs([]);
+    setShowDebugPanel(false);
+    lastFrameTimeRef.current = null;
   };
 
   const saveMcqChoice = async (questionId: string, option: string) => {
@@ -6090,6 +6256,19 @@ export default function App() {
                     Camera: {cameraStream ? 'Active' : 'Disabled'}
                   </span>
 
+                  {/* Dev Debug Panel Toggle Badge */}
+                  <button
+                    onClick={() => setShowDebugPanel(!showDebugPanel)}
+                    className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition-all text-[10px] font-bold ${
+                      showDebugPanel 
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg' 
+                        : 'bg-slate-950 border-white/5 text-slate-400 hover:bg-slate-800'
+                    }`}
+                  >
+                    <Cpu className="h-3.5 w-3.5" />
+                    Debug Panel
+                  </button>
+
                   {/* Tab warning lock status */}
                   <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${tabWarnings > 0 ? 'bg-rose-500/10 border-rose-500/20 text-rose-450' : 'bg-slate-950 border-white/5 text-slate-405'}`}>
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
@@ -6162,6 +6341,90 @@ export default function App() {
                   </button>
                 </div>
               </header>
+
+              {/* Developer Debug Panel */}
+              {showDebugPanel && (
+                <div className="absolute top-16 right-6 w-80 bg-slate-900/95 backdrop-blur-md border border-white/10 rounded-2xl p-4 shadow-2xl z-50 text-xs font-semibold text-slate-350 space-y-4 font-mono">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                    <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Cpu className="h-3.5 w-3.5 animate-pulse" />
+                      Developer Debug Panel
+                    </span>
+                    <button 
+                      onClick={() => setShowDebugPanel(false)}
+                      className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[10px]">
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Camera Connected</span>
+                      <span className={cameraConnected ? 'text-emerald-400 font-bold' : 'text-rose-455 font-bold'}>
+                        {cameraConnected ? 'Connected' : 'Disconnected'}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Stream Active</span>
+                      <span className={cameraStreamActive ? 'text-emerald-400 font-bold' : 'text-rose-455 font-bold'}>
+                        {cameraStreamActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Face Detected</span>
+                      <span className={faceDetected ? 'text-emerald-400 font-bold' : 'text-rose-455 font-bold'}>
+                        {faceDetected ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Confidence</span>
+                      <span className="text-white font-bold">
+                        {(faceConfidence * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Tracking Active</span>
+                      <span className={faceTrackingActive ? 'text-emerald-400 font-bold' : 'text-rose-455 font-bold'}>
+                        {faceTrackingActive ? 'Active' : 'Lost'}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">No Face Timer</span>
+                      <span className={`font-bold ${noFaceTimer > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-400'}`}>
+                        {noFaceTimer.toFixed(1)}s
+                      </span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5 col-span-2">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Last Face Seen</span>
+                      <span className="text-white">{lastFaceSeen}</span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5 col-span-2">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Active Fraud State</span>
+                      <span className={`font-bold ${activeFraudState === 'Normal' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {activeFraudState}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5 col-span-2">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Detection FPS</span>
+                      <span className="text-indigo-400">{detectionFps} FPS</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 bg-slate-950 p-2.5 rounded-lg border border-white/5">
+                    <span className="text-slate-500 uppercase tracking-widest text-[8px] block mb-1">State Transition Logs</span>
+                    <div className="h-24 overflow-y-auto text-[8px] space-y-1 scrollbar-thin text-slate-400">
+                      {debugLogs.map((log, i) => (
+                        <div key={i} className="flex gap-1.5">
+                          <span className="text-indigo-400/80">[{log.time}]</span>
+                          <span>{log.event}</span>
+                        </div>
+                      ))}
+                      {debugLogs.length === 0 && <div className="text-slate-650">No events logged yet.</div>}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* MAIN CONTENT AREA */}
               <div className="flex-1 flex flex-row overflow-hidden w-full relative">

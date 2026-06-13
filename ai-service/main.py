@@ -47,9 +47,30 @@ try:
 except Exception as e:
     logger.error(f"Error loading YOLOv8 ONNX: {e}")
 
+import urllib.request
+
 # Load OpenCV face detectors
 face_cascade = None
 profile_cascade = None
+
+def download_cascade_if_missing(filename: str, url: str):
+    if not os.path.exists(filename):
+        try:
+            logger.info(f"Downloading {filename} from Github OpenCV repo...")
+            urllib.request.urlretrieve(url, filename)
+            logger.info(f"Successfully downloaded {filename}.")
+        except Exception as e:
+            logger.error(f"Failed to download {filename}: {e}")
+
+download_cascade_if_missing(
+    "haarcascade_frontalface_default.xml",
+    "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+)
+download_cascade_if_missing(
+    "haarcascade_profileface.xml",
+    "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_profileface.xml"
+)
+
 try:
     if os.path.exists("haarcascade_frontalface_default.xml"):
         face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
@@ -429,8 +450,9 @@ async def analyze_frame(
         img_bytes = base64.b64decode(frame)
         image = Image.open(io.BytesIO(img_bytes))
         
-        # Convert PIL Image to OpenCV format (RGB)
-        open_cv_image = np.array(image.convert("RGB"))
+        # Convert PIL Image to OpenCV BGR format (OpenCV and InsightFace expect BGR)
+        rgb_image = np.array(image.convert("RGB"))
+        open_cv_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
         
         # Optimize frame size before inference to reduce CPU load
         height, width = open_cv_image.shape[:2]
@@ -451,8 +473,8 @@ async def analyze_frame(
                 letterboxed, scale, dx, dy = letterbox_image(open_cv_image, (640, 640))
                 
                 # YOLOv8 input is 640x640, scale factor is 1/255.0
-                # Set swapRB=False since letterboxed is already RGB
-                blob = cv2.dnn.blobFromImage(letterboxed, 1.0/255.0, (640, 640), swapRB=False, crop=False)
+                # Set swapRB=True since letterboxed is in BGR format
+                blob = cv2.dnn.blobFromImage(letterboxed, 1.0/255.0, (640, 640), swapRB=True, crop=False)
                 yolo_net.setInput(blob)
                 outputs = yolo_net.forward() # shape: (1, 84, 8400)
                 
@@ -523,7 +545,7 @@ async def analyze_frame(
         faces_detected = []
         if face_cascade is not None:
             try:
-                gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
+                gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
                 small_gray = cv2.resize(gray, (320, 240))
                 faces = face_cascade.detectMultiScale(small_gray, scaleFactor=1.1, minNeighbors=4)
                 for f in faces:
@@ -534,7 +556,7 @@ async def analyze_frame(
         # If no frontal faces found, fall back to profile face cascade
         if len(faces_detected) == 0 and profile_cascade is not None:
             try:
-                gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
+                gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
                 small_gray = cv2.resize(gray, (320, 240))
                 profiles = profile_cascade.detectMultiScale(small_gray, scaleFactor=1.1, minNeighbors=4)
                 for p in profiles:
