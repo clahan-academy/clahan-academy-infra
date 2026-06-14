@@ -456,6 +456,13 @@ async def analyze_frame(
         if width > 640 or height > 480:
             open_cv_image = cv2.resize(open_cv_image, (640, 480), interpolation=cv2.INTER_AREA)
         
+        # Calculate diagnostics
+        img_width, img_height = image.size
+        frame_size_bytes = len(img_bytes)
+        gray_diag = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
+        avg_brightness = float(np.mean(gray_diag))
+        blur_score = float(cv2.Laplacian(gray_diag, cv2.CV_64F).var())
+
         # Initialize default response
         face_count = 1
         yolo_persons = 0
@@ -525,6 +532,14 @@ async def analyze_frame(
                 objects_detected = list(set(objects_detected))
             except Exception as e:
                 logger.error(f"YOLO ONNX detection error: {str(e)}")
+                # Auto-healing fallback if CUDA is set but fails at runtime
+                if "CUDA" in str(e) or "preferableBackend" in str(e):
+                    logger.warning("CUDA DNN forward failed. Switching YOLO backend to CPU...")
+                    try:
+                        yolo_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+                        yolo_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+                    except Exception as fallback_err:
+                        logger.error(f"Failed to reset YOLO to CPU: {fallback_err}")
         
         # 2. Run InsightFace Face Detection
         insight_faces = []
@@ -542,9 +557,8 @@ async def analyze_frame(
         faces_detected = []
         if face_cascade is not None:
             try:
-                gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
-                small_gray = cv2.resize(gray, (320, 240))
-                faces = face_cascade.detectMultiScale(small_gray, scaleFactor=1.1, minNeighbors=4)
+                # Running directly on original resolution (optimized 640x480 max) to prevent distortion
+                faces = face_cascade.detectMultiScale(gray_diag, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
                 for f in faces:
                     faces_detected.append(f)
             except Exception as e:
@@ -553,9 +567,7 @@ async def analyze_frame(
         # If no frontal faces found, fall back to profile face cascade
         if len(faces_detected) == 0 and profile_cascade is not None:
             try:
-                gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
-                small_gray = cv2.resize(gray, (320, 240))
-                profiles = profile_cascade.detectMultiScale(small_gray, scaleFactor=1.1, minNeighbors=4)
+                profiles = profile_cascade.detectMultiScale(gray_diag, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
                 for p in profiles:
                     faces_detected.append(p)
             except Exception as e:
@@ -586,6 +598,18 @@ async def analyze_frame(
             logger.info(f"Face detectors found {face_count} faces, but YOLOv8 detected 1 person. Overriding face_count to 1.")
             face_count = 1
 
+        # Save frames for diagnosis to disk
+        if face_count > 0:
+            try:
+                cv2.imwrite("successful_frame.jpg", open_cv_image)
+            except Exception as save_err:
+                logger.error(f"Failed to save successful frame: {save_err}")
+        else:
+            try:
+                cv2.imwrite("failing_frame.jpg", open_cv_image)
+            except Exception as save_err:
+                logger.error(f"Failed to save failing frame: {save_err}")
+
         # Determine if a face/person is actually present in this frame
         face_present_flag = (face_count > 0)
 
@@ -610,7 +634,12 @@ async def analyze_frame(
             f"face_present_flag={face_present_flag}\n"
             f"tracker_state={tracker.state}\n"
             f"tracker_first_lost_time={tracker.first_lost_time}\n"
-            f"elapsed_lost={temp_elapsed:.1f}"
+            f"elapsed_lost={temp_elapsed:.1f}\n"
+            f"image_width={img_width}\n"
+            f"image_height={img_height}\n"
+            f"payload_size_bytes={frame_size_bytes}\n"
+            f"avg_brightness={avg_brightness:.2f}\n"
+            f"blur_score={blur_score:.2f}"
         )
 
         tracking_status = tracker.update(face_present_flag, face_confidence)
