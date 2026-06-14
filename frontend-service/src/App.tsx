@@ -273,7 +273,12 @@ export default function App() {
   const [detectionFps, setDetectionFps] = useState(0);
   const [debugLogs, setDebugLogs] = useState<Array<{ time: string; event: string }>>([]);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [faceCount, setFaceCount] = useState(0);
+  const [detectionSource, setDetectionSource] = useState('None');
   const lastFrameTimeRef = useRef<number | null>(null);
+  const prevFacePresentRef = useRef<boolean | null>(null);
+  const prevElapsedLostRef = useRef<number>(0);
+  const prevTrackingStatusRef = useRef<string>('Face Present');
 
   const logDebugEvent = useCallback((event: string) => {
     const time = new Date().toLocaleTimeString();
@@ -2401,7 +2406,6 @@ export default function App() {
         socket.emit('join-exam', { token, attemptId, examId: currentExamRef.current?.id });
         logDebugEvent('Exam Connected');
       });
-
       socket.on('proctor-status', (status: any) => {
         // Calculate FPS
         const now = Date.now();
@@ -2412,32 +2416,53 @@ export default function App() {
         }
         lastFrameTimeRef.current = now;
 
-        setFaceConfidence(status.faceConfidence || 0);
-        setFaceTrackingActive(status.trackingStatus !== 'Face Lost');
-        
-        // Log State Changes
-        setFaceDetected(prevFaceDetected => {
-          if (prevFaceDetected !== status.facePresent) {
-            logDebugEvent(status.facePresent ? 'Face Detected' : 'Face Lost');
-            if (status.faceRecovered) {
-              logDebugEvent('Face Recovered');
-            }
-          }
-          return status.facePresent;
-        });
+        const conf = status.faceConfidence || 0;
+        const facePresent = !!status.facePresent;
+        const elapsedLost = status.elapsedLost || 0.0;
+        const trackingStatus = status.trackingStatus || 'Face Present';
 
-        setNoFaceTimer(prevTimer => {
-          if (prevTimer === 0 && status.elapsedLost > 0) {
-            logDebugEvent('Timer Started');
-          } else if (prevTimer > 0 && status.elapsedLost === 0) {
-            logDebugEvent('Timer Reset');
-          }
-          return status.elapsedLost;
-        });
+        setFaceConfidence(conf);
+        setFaceTrackingActive(trackingStatus !== 'Face Lost');
+        setFaceCount(status.faceCount || 0);
+        setDetectionSource(status.detectionSource || 'None');
+        setNoFaceTimer(elapsedLost);
+        setFaceDetected(facePresent);
 
-        if (status.facePresent) {
+        if (facePresent) {
           setLastFaceSeen(new Date().toLocaleTimeString());
         }
+
+        // --- Log State Changes in exact format requested ---
+        // 1. Face Detected / Lost changes
+        if (prevFacePresentRef.current !== facePresent) {
+          if (prevFacePresentRef.current !== null) {
+            if (facePresent) {
+              logDebugEvent('Face Detected');
+              logDebugEvent(`Confidence ${conf.toFixed(2)}`);
+            } else {
+              logDebugEvent('Face Lost');
+            }
+          }
+          prevFacePresentRef.current = facePresent;
+        }
+
+        // 2. No Face Timer changes
+        const currentSecInt = Math.round(elapsedLost);
+        const prevSecInt = Math.round(prevElapsedLostRef.current);
+        if (prevElapsedLostRef.current === 0 && elapsedLost > 0) {
+          logDebugEvent(`No Face Timer = ${currentSecInt}`);
+        } else if (prevElapsedLostRef.current > 0 && elapsedLost === 0) {
+          logDebugEvent(`Timer Reset To 0`);
+        } else if (elapsedLost > 0 && currentSecInt !== prevSecInt) {
+          logDebugEvent(`No Face Timer = ${currentSecInt}`);
+        }
+        prevElapsedLostRef.current = elapsedLost;
+
+        // 3. Face Recovered tracking status changes
+        if (status.faceRecovered && prevTrackingStatusRef.current !== 'Face Recovered') {
+          logDebugEvent('Face Recovered');
+        }
+        prevTrackingStatusRef.current = trackingStatus;
 
         // Determine active fraud state
         let fraudState = 'Normal';
@@ -2451,7 +2476,6 @@ export default function App() {
         }
         setActiveFraudState(fraudState);
       });
-
       socket.on('proctor-warning', (alert: any) => {
         showToast(alert.message, 'warning');
         setProctorLogs(prev => [`[Warning] ${alert.message} (${new Date().toLocaleTimeString()})`, ...prev]);
@@ -6374,7 +6398,6 @@ export default function App() {
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-
                   <div className="grid grid-cols-2 gap-2 text-[10px]">
                     <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
                       <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Camera Connected</span>
@@ -6401,6 +6424,12 @@ export default function App() {
                       </span>
                     </div>
                     <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Face Count</span>
+                      <span className="text-white font-bold">
+                        {faceCount}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
                       <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Tracking Active</span>
                       <span className={faceTrackingActive ? 'text-emerald-400 font-bold' : 'text-rose-455 font-bold'}>
                         {faceTrackingActive ? 'Active' : 'Lost'}
@@ -6410,6 +6439,12 @@ export default function App() {
                       <span className="text-slate-500 block uppercase tracking-wider text-[8px]">No Face Timer</span>
                       <span className={`font-bold ${noFaceTimer > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-400'}`}>
                         {noFaceTimer.toFixed(1)}s
+                      </span>
+                    </div>
+                    <div className="bg-slate-950 p-2 rounded-lg border border-white/5">
+                      <span className="text-slate-500 block uppercase tracking-wider text-[8px]">Detection Source</span>
+                      <span className="text-indigo-400 font-bold">
+                        {detectionSource}
                       </span>
                     </div>
                     <div className="bg-slate-950 p-2 rounded-lg border border-white/5 col-span-2">
@@ -6427,7 +6462,6 @@ export default function App() {
                       <span className="text-indigo-400">{detectionFps} FPS</span>
                     </div>
                   </div>
-
                   <div className="space-y-1 bg-slate-950 p-2.5 rounded-lg border border-white/5">
                     <span className="text-slate-500 uppercase tracking-widest text-[8px] block mb-1">State Transition Logs</span>
                     <div className="h-24 overflow-y-auto text-[8px] space-y-1 scrollbar-thin text-slate-400">

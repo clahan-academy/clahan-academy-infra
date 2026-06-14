@@ -119,20 +119,17 @@ class AttemptTracker:
             self.consecutive_absent_frames = 0
             self.consecutive_present_frames += 1
             
-            # Transition to Recovered if we were lost or in temporary loss
+            # Reset the lost timer immediately on the first frame of face presence
+            self.first_lost_time = None
+            self.last_seen_time = now
+            
             if self.state in ["Temporary Detection Loss", "Face Lost"]:
-                # Require at least 2 consecutive frames of face presence to confirm recovery
-                if self.consecutive_present_frames >= 2:
-                    self.state = "Face Recovered"
-                    self.first_lost_time = None
-                    self.last_seen_time = now
+                self.state = "Face Recovered"
             elif self.state == "Face Recovered":
-                if self.consecutive_present_frames >= 4:
+                if self.consecutive_present_frames >= 2:
                     self.state = "Face Present"
             else:
                 self.state = "Face Present"
-                self.last_seen_time = now
-                self.first_lost_time = None
         else:
             self.consecutive_present_frames = 0
             self.consecutive_absent_frames += 1
@@ -564,13 +561,16 @@ async def analyze_frame(
             except Exception as e:
                 logger.error(f"Profile Face detection error: {str(e)}")
 
-        # Resolve primary face count
+        # Resolve primary face count and detection source
+        detection_source = "None"
         if len(insight_faces) > 0:
             face_count = len(insight_faces)
+            detection_source = "InsightFace"
         else:
             face_count = len(faces_detected)
             if face_count > 0:
                 face_confidence = 0.85  # Confidence fallback for Haar Cascade detection
+                detection_source = "OpenCV Haar Cascade"
         
         # Fallback 1: If both detectors missed the face but YOLOv8 detects a person,
         # set face_count to match yolo_persons since they are physically present.
@@ -578,6 +578,7 @@ async def analyze_frame(
             logger.info(f"InsightFace and Cascades detected 0 faces, but YOLOv8 detected {yolo_persons} person(s). Overriding face_count to {yolo_persons}.")
             face_count = yolo_persons
             face_confidence = max(0.50, detected_confidences.get("person", 0.50))
+            detection_source = "YOLO (OpenCV DNN)"
         
         # Fallback 2: If detectors find multiple faces but YOLOv8 detects only 1 person,
         # override face_count to 1 to filter out background/shadow faces.
@@ -639,7 +640,8 @@ async def analyze_frame(
             "ocrText": None,
             "violations": violations,
             "verified": (face_count == 1 and len(violations) == 0),
-            "confidences": detected_confidences
+            "confidences": detected_confidences,
+            "detectionSource": detection_source
         }
     
     except Exception as e:
