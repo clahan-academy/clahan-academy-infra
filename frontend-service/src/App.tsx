@@ -568,7 +568,6 @@ export default function App() {
   // Real-time proctor socket client
   const socketRef = useRef<Socket | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const bgVideoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const proctorIntervalRef = useRef<any>(null);
   const currentPageRef = useRef(currentPage);
@@ -601,37 +600,6 @@ export default function App() {
       }
     }
   }, [currentPage, validationStep, cameraStream]);
-
-  // Synchronize webcam stream to off-screen persistent video element to prevent browser throttling/blank frames
-  useEffect(() => {
-    if (cameraStream) {
-      let bgVideo = document.getElementById('clahan-proctor-bg-video') as HTMLVideoElement;
-      if (!bgVideo) {
-        bgVideo = document.createElement('video');
-        bgVideo.id = 'clahan-proctor-bg-video';
-        bgVideo.autoplay = true;
-        bgVideo.playsInline = true;
-        bgVideo.muted = true;
-        bgVideo.style.position = 'absolute';
-        bgVideo.style.left = '-9999px';
-        bgVideo.style.top = '0';
-        bgVideo.style.width = '640px';
-        bgVideo.style.height = '480px';
-        bgVideo.style.pointerEvents = 'none';
-        document.body.appendChild(bgVideo);
-      }
-      if (bgVideo.srcObject !== cameraStream) {
-        bgVideo.srcObject = cameraStream;
-      }
-      bgVideoRef.current = bgVideo;
-    }
-    return () => {
-      const bgVideo = document.getElementById('clahan-proctor-bg-video');
-      if (bgVideo) {
-        bgVideo.remove();
-      }
-    };
-  }, [cameraStream]);
 
   // View Result Detail State
   const [selectedResultAttemptId, setSelectedResultAttemptId] = useState<string | null>(null);
@@ -2536,11 +2504,9 @@ export default function App() {
 
     // Periodically capture and stream webcam frame to the socket
     proctorIntervalRef.current = setInterval(() => {
-      if (currentPageRef.current === 'exam-env' && socketRef.current) {
+      if (currentPageRef.current === 'exam-env' && videoRef.current && socketRef.current) {
         try {
-          const video = bgVideoRef.current || videoRef.current;
-          if (!video) return;
-          
+          const video = videoRef.current;
           const canvas = document.createElement('canvas');
           canvas.width = 640;
           canvas.height = 480;
@@ -2550,15 +2516,43 @@ export default function App() {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const dataUrl = canvas.toDataURL('image/jpeg', 0.70);
             
-            // Log frame and stream metadata for debugging
-            console.log("[PROCTOR FRAME METRICS]", {
-              readyState: video.readyState,
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight,
-              paused: video.paused,
-              ended: video.ended,
-              frameSizeInBytes: dataUrl.length
-            });
+            // Check if the captured frame is black
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
+            let sum = 0;
+            const step = 40; // Sample pixels to save CPU
+            let count = 0;
+            for (let i = 0; i < data.length; i += step) {
+              const r = data[i];
+              const g = data[i+1];
+              const b = data[i+2];
+              sum += (0.299 * r + 0.587 * g + 0.114 * b);
+              count++;
+            }
+            const avgBrightness = sum / count;
+            const isBlackFrame = avgBrightness < 5.0;
+
+            if (isBlackFrame) {
+              console.log("[BLACK FRAME DETECTED]", {
+                readyState: video.readyState,
+                currentTime: video.currentTime,
+                paused: video.paused,
+                ended: video.ended,
+                videoWidth: video.videoWidth,
+                videoHeight: video.videoHeight,
+                avgBrightness: avgBrightness.toFixed(2),
+                frameSizeInBytes: dataUrl.length
+              });
+            } else {
+              console.log("[PROCTOR FRAME METRICS]", {
+                readyState: video.readyState,
+                videoWidth: video.videoWidth,
+                videoHeight: video.videoHeight,
+                paused: video.paused,
+                ended: video.ended,
+                frameSizeInBytes: dataUrl.length
+              });
+            }
 
             socketRef.current.emit('proctor-frame', { image: dataUrl });
           }
