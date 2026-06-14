@@ -78,23 +78,42 @@ On modern Linux systems running systemd version 255+ and Linux Kernel 6.x+, the 
    touch judge0.conf
    ```
 
+3. Initialize microservice environment configuration files from their `.env.example` templates by running the copy helper script:
+   ```bash
+   chmod +x copy-env-examples.sh
+   ./copy-env-examples.sh
+   ```
+   This creates the required `.env` file for each microservice, allowing Docker Compose to build and start successfully.
+
 ---
 
 ## 3. Environment Variables Configuration
 
-Open `docker-compose.yml` or create a `.env` file in the root directory. Replace placeholders with active credentials:
+Each microservice maintains its own `.env` configuration file located in its service folder (e.g. `auth-service/.env`, `notification-service/.env`, `proctoring-service/.env`, etc.). 
 
-### A. Core SMTP Configurations (Node.js APIs)
-Used by `auth-service` and `notification-service` to deliver verification OTP emails:
+Review and configure the variables in these individual files as needed:
+
+### A. Core SMTP Configurations (`notification-service/.env`)
+Used to deliver student credential and verification OTP emails:
 * **`SMTP_HOST`**: `smtp.gmail.com`
-* **`SMTP_PORT`**: `587` (TLS) or `465` (SSL)
+* **`SMTP_PORT`**: `465` (SSL) or `587` (TLS)
 * **`SMTP_USER`**: `your-system-email@gmail.com`
 * **`SMTP_PASS`**: `your-16-character-gmail-app-password`
+* **`SMTP_FROM`**: `your-system-email@gmail.com`
 
-### B. Twilio SendGrid API Integration
-To fall back or switch notification channels to SendGrid, configure:
+### B. Twilio SendGrid API Integration (`notification-service/.env`)
+To fall back or switch notification channels to SendGrid:
 * **`SENDGRID_API_KEY`**: `SG.your_sendgrid_api_key_here`
 * **`SENDGRID_FROM`**: `noreply@YOUR_DOMAIN.com`
+
+### C. Live Proctoring Violation Limits (`proctoring-service/.env`)
+Configure the thresholds for warnings and auto-terminations/auto-submissions:
+* **`TAB_SWITCH_LIMIT`**: Limit of tab switching actions (default: `3`)
+* **`MOBILE_PHONE_LIMIT`**: Consecutive camera frames triggering mobile detection (default: `5`)
+* **`BOOK_LIMIT`**: Consecutive camera frames triggering book detection (default: `8`)
+* **`MULTIPLE_FACES_LIMIT`**: Consecutive camera frames triggering multiple faces (default: `5`)
+* **`NO_FACE_TIMEOUT_MS`**: Milliseconds after which face absence auto-submits exam (default: `10000`)
+* **`FULLSCREEN_EXIT_LIMIT`**: Limit of exiting fullscreen mode (default: `3`)
 
 ---
 
