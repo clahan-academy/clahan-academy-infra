@@ -60,7 +60,7 @@ app.get('/api/notifications/test-smtp', (req, res) => {
 const smtpHost = (process.env.SMTP_HOST || 'smtp.gmail.com').replace(/^"|"$/g, '');
 const smtpPort = parseInt((process.env.SMTP_PORT || '587').replace(/^"|"$/g, ''));
 const smtpUser = (process.env.SMTP_USER || 'aiexamplatform123@gmail.com').replace(/^"|"$/g, '');
-const smtpPass = (process.env.SMTP_PASS || 'zmso iaml jdkh wpxn').replace(/^"|"$/g, '');
+const smtpPass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || 'zmso iaml jdkh wpxn').replace(/^"|"$/g, '');
 const smtpFrom = (process.env.SMTP_FROM || 'aiexamplatform123@gmail.com').replace(/^"|"$/g, '');
 
 const transporter = nodemailer.createTransport({
@@ -86,11 +86,13 @@ transporter.verify((err, success) => {
 const sendGridKey = (process.env.SENDGRID_API_KEY || '').replace(/^"|"$/g, '');
 const sendGridFrom = (process.env.SENDGRID_FROM || 'noreply@clahanacademy.com').replace(/^"|"$/g, '');
 
-if (sendGridKey) {
+const isSendGridConfigured = sendGridKey && sendGridKey.startsWith('SG.') && sendGridKey !== 'your_sendgrid_api_key_here';
+
+if (isSendGridConfigured) {
   sgMail.setApiKey(sendGridKey);
   console.log('SendGrid API key configured. Email deliveries will run via SendGrid API.');
 } else {
-  console.log('SendGrid API key not configured. Falling back to SMTP/Console log.');
+  console.log('SendGrid API key not configured or invalid placeholder. Falling back to SMTP/Console log.');
 }
 
 // Logs for auditing
@@ -267,7 +269,7 @@ const worker = new Worker(
 
     const { subject, html } = compileEmail(event, payload);
 
-    if (sendGridKey) {
+    if (isSendGridConfigured) {
       await sgMail.send({
         to: payload.email,
         from: sendGridFrom,
@@ -324,7 +326,7 @@ worker.on('completed', (job) => {
     event: job.name,
     timestamp: new Date(),
     success: true,
-    details: sendGridKey ? 'Delivered via SendGrid API' : 'Delivered via SMTP'
+    details: isSendGridConfigured ? 'Delivered via SendGrid API' : 'Delivered via SMTP'
   });
   console.log(`[Queue] Job [${job.id}] completed successfully.`);
 });
