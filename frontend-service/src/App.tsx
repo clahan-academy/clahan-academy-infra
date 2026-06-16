@@ -4066,8 +4066,12 @@ export default function App() {
                     <div className="space-y-3">
                       {notifications.map((n, i) => (
                         <div key={n.id || i} className="p-4 rounded-xl border border-slate-200/40 dark:border-slate-800/40 bg-white dark:bg-slate-950 flex gap-3">
-                          <div className="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
-                            <Bell className="h-4 w-4" />
+                          <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                            n.type === 'result_published' 
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                              : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                          }`}>
+                            {n.type === 'result_published' ? <Award className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
                           </div>
                           <div>
                             <p className="font-bold text-sm">{n.title}</p>

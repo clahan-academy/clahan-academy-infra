@@ -388,10 +388,22 @@ app.post('/api/exams/:id/publish', authenticate, requireRole('admin'), async (re
         if (result.rows.length === 0)
             return res.status(404).json({ error: 'Exam not found' });
         const exam = result.rows[0];
-        // Find eligible students to notify
-        const students = await query(`SELECT email, full_name FROM users 
-       WHERE role = 'student' AND college_id = $1 AND year = $2 
-         AND (department_id = $3 OR department_id = ANY($4))`, [exam.college_id, exam.year, exam.department_id, exam.department_ids || []]);
+        // Find eligible students to notify (handles both batch-based and dept/year-based exams)
+        let students;
+        if (exam.batch_id) {
+            // Batch-based exam: notify all students in this batch
+            students = await query(`SELECT email, full_name FROM users 
+         WHERE role = 'student' AND college_id = $1 AND batch_id = $2
+           AND status = 'active' AND email_verified = TRUE`, [exam.college_id, exam.batch_id]);
+        }
+        else {
+            // Department/year-based exam: notify students matching department(s) and year
+            students = await query(`SELECT email, full_name FROM users 
+         WHERE role = 'student' AND college_id = $1 AND year = $2
+           AND (department_id = $3 OR department_id = ANY($4::uuid[]))
+           AND ($5::uuid IS NULL OR trainer_id = $5)
+           AND status = 'active' AND email_verified = TRUE`, [exam.college_id, exam.year, exam.department_id, exam.department_ids || [], exam.trainer_id || null]);
+        }
         const notificationPayloads = students.rows.map(student => ({
             email: student.email,
             fullName: student.full_name,

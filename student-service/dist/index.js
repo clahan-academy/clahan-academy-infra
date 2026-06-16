@@ -257,11 +257,11 @@ app.get('/api/student/notifications', authenticateStudent, async (req, res) => {
     try {
         const studentId = req.user.id;
         // Fetch latest user details from DB to avoid stale token issues
-        const userRes = await query('SELECT college_id, department_id, year, batch_id FROM users WHERE id = $1', [studentId]);
+        const userRes = await query('SELECT college_id, department_id, year, batch_id, trainer_id FROM users WHERE id = $1', [studentId]);
         if (userRes.rows.length === 0) {
             return res.status(404).json({ error: 'Student profile not found' });
         }
-        const { college_id: collegeId, department_id: departmentId, year, batch_id: batchId } = userRes.rows[0];
+        const { college_id: collegeId, department_id: departmentId, year, batch_id: batchId, trainer_id: trainerId } = userRes.rows[0];
         // Let's dynamically generate a list of relevant in-app announcements
         const publishedExams = await query(`SELECT id, name, schedule_date FROM exams 
        WHERE college_id = $1 AND is_published = TRUE
@@ -270,15 +270,39 @@ app.get('/api/student/notifications', authenticateStudent, async (req, res) => {
            OR
            (batch_id IS NULL AND (department_id = $2 OR $2 = ANY(COALESCE(department_ids, '{}'))) AND year = $3)
          )
-       ORDER BY schedule_date DESC LIMIT 10`, [collegeId, departmentId, year, batchId]);
-        const notifications = publishedExams.rows.map(exam => ({
-            id: exam.id,
-            title: 'New Exam Scheduled',
-            message: `Exam "${exam.name}" has been published and scheduled for ${new Date(exam.schedule_date).toLocaleString()}.`,
-            createdAt: exam.schedule_date,
-            type: 'exam_published'
-        }));
-        res.json(notifications);
+         AND (trainer_id IS NULL OR trainer_id = $5)
+       ORDER BY schedule_date DESC LIMIT 20`, [collegeId, departmentId, year, batchId, trainerId || null]);
+        const notifications = [];
+        // Exam published notifications
+        publishedExams.rows.forEach(exam => {
+            notifications.push({
+                id: `exam-${exam.id}`,
+                title: 'New Exam Scheduled',
+                message: `Exam "${exam.name}" has been published and scheduled for ${new Date(exam.schedule_date).toLocaleString()}.`,
+                createdAt: exam.schedule_date,
+                type: 'exam_published'
+            });
+        });
+        // Result available notifications
+        const completedAttempts = await query(`SELECT ea.id, ea.score, ea.percentage, ea.passed, ea.created_at as attempt_date,
+              e.name as exam_name
+       FROM exam_attempts ea
+       JOIN exams e ON ea.exam_id = e.id
+       WHERE ea.student_id = $1 AND ea.status IN ('completed', 'terminated')
+       ORDER BY ea.created_at DESC LIMIT 10`, [studentId]);
+        completedAttempts.rows.forEach(attempt => {
+            const resultText = attempt.passed ? 'Passed' : 'Failed';
+            notifications.push({
+                id: `result-${attempt.id}`,
+                title: `Result Available: ${attempt.exam_name}`,
+                message: `Your result for "${attempt.exam_name}" is available. Score: ${attempt.percentage}% — ${resultText}.`,
+                createdAt: attempt.attempt_date,
+                type: 'result_published'
+            });
+        });
+        // Sort all notifications by date (newest first)
+        notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        res.json(notifications.slice(0, 20));
     }
     catch (err) {
         res.status(500).json({ error: err.message });
