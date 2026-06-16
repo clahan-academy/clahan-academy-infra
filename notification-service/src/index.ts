@@ -269,15 +269,29 @@ const worker = new Worker(
 
     const { subject, html } = compileEmail(event, payload);
 
+    let sentMethod: 'SendGrid' | 'SMTP' | null = null;
+    let errors: string[] = [];
+
     if (isSendGridConfigured) {
-      await sgMail.send({
-        to: payload.email,
-        from: sendGridFrom,
-        subject: subject,
-        html: html,
-      });
-      console.log(`[SendGrid] Email dispatched successfully to ${payload.email}`);
-    } else {
+      try {
+        await sgMail.send({
+          to: payload.email,
+          from: sendGridFrom,
+          subject: subject,
+          html: html,
+        });
+        sentMethod = 'SendGrid';
+        console.log(`[SendGrid] Email dispatched successfully to ${payload.email}`);
+      } catch (err: any) {
+        console.warn(`[SendGrid] Failed to send email to ${payload.email}:`, err.message);
+        errors.push(`SendGrid: ${err.message}`);
+      }
+    }
+
+    if (!sentMethod) {
+      if (isSendGridConfigured) {
+        console.log(`Attempting SMTP fallback delivery for ${payload.email}...`);
+      }
       let sentSmtp = false;
       let smtpErr = '';
       try {
@@ -288,9 +302,11 @@ const worker = new Worker(
           html: html,
         });
         sentSmtp = true;
+        sentMethod = 'SMTP';
         console.log(`[SMTP] Email dispatched successfully to ${payload.email}`);
       } catch (err: any) {
         smtpErr = err.message;
+        errors.push(`SMTP: ${err.message}`);
       }
 
       if (!sentSmtp) {
@@ -306,10 +322,11 @@ const worker = new Worker(
           console.log(`Temporary Password: ${payload.password}`);
         }
         console.log('-------------------------------------------\n');
-        // Still throw error so BullMQ knows it failed and registers the hook/retry, but we have printed it to console
-        throw new Error(`SMTP failed (${smtpErr}). OTP printed to console.`);
+        throw new Error(`Email delivery failed (SendGrid/SMTP). Errors: ${errors.join(' | ')}`);
       }
     }
+
+    return { channel: sentMethod };
   },
   {
     connection: {
@@ -320,13 +337,13 @@ const worker = new Worker(
   }
 );
 
-worker.on('completed', (job) => {
+worker.on('completed', (job, result) => {
   deliveryLogs.push({
     email: job.data.email,
     event: job.name,
     timestamp: new Date(),
     success: true,
-    details: isSendGridConfigured ? 'Delivered via SendGrid API' : 'Delivered via SMTP'
+    details: `Delivered via ${result?.channel || 'SMTP/SendGrid'}`
   });
   console.log(`[Queue] Job [${job.id}] completed successfully.`);
 });

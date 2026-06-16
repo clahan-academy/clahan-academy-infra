@@ -279,16 +279,28 @@ const worker = new bullmq_1.Worker('notification_queue', async (job) => {
         throw new Error('Skipping notification job: missing payload email');
     }
     const { subject, html } = compileEmail(event, payload);
+    let sentMethod = null;
+    let errors = [];
     if (isSendGridConfigured) {
-        await mail_1.default.send({
-            to: payload.email,
-            from: sendGridFrom,
-            subject: subject,
-            html: html,
-        });
-        console.log(`[SendGrid] Email dispatched successfully to ${payload.email}`);
+        try {
+            await mail_1.default.send({
+                to: payload.email,
+                from: sendGridFrom,
+                subject: subject,
+                html: html,
+            });
+            sentMethod = 'SendGrid';
+            console.log(`[SendGrid] Email dispatched successfully to ${payload.email}`);
+        }
+        catch (err) {
+            console.warn(`[SendGrid] Failed to send email to ${payload.email}:`, err.message);
+            errors.push(`SendGrid: ${err.message}`);
+        }
     }
-    else {
+    if (!sentMethod) {
+        if (isSendGridConfigured) {
+            console.log(`Attempting SMTP fallback delivery for ${payload.email}...`);
+        }
         let sentSmtp = false;
         let smtpErr = '';
         try {
@@ -299,10 +311,12 @@ const worker = new bullmq_1.Worker('notification_queue', async (job) => {
                 html: html,
             });
             sentSmtp = true;
+            sentMethod = 'SMTP';
             console.log(`[SMTP] Email dispatched successfully to ${payload.email}`);
         }
         catch (err) {
             smtpErr = err.message;
+            errors.push(`SMTP: ${err.message}`);
         }
         if (!sentSmtp) {
             // Fail-safe fallback to console logging
@@ -317,10 +331,10 @@ const worker = new bullmq_1.Worker('notification_queue', async (job) => {
                 console.log(`Temporary Password: ${payload.password}`);
             }
             console.log('-------------------------------------------\n');
-            // Still throw error so BullMQ knows it failed and registers the hook/retry, but we have printed it to console
-            throw new Error(`SMTP failed (${smtpErr}). OTP printed to console.`);
+            throw new Error(`Email delivery failed (SendGrid/SMTP). Errors: ${errors.join(' | ')}`);
         }
     }
+    return { channel: sentMethod };
 }, {
     connection: {
         host: redisHost,
@@ -328,13 +342,13 @@ const worker = new bullmq_1.Worker('notification_queue', async (job) => {
     },
     concurrency: 20, // Process up to 20 emails in parallel
 });
-worker.on('completed', (job) => {
+worker.on('completed', (job, result) => {
     deliveryLogs.push({
         email: job.data.email,
         event: job.name,
         timestamp: new Date(),
         success: true,
-        details: isSendGridConfigured ? 'Delivered via SendGrid API' : 'Delivered via SMTP'
+        details: `Delivered via ${result?.channel || 'SMTP/SendGrid'}`
     });
     console.log(`[Queue] Job [${job.id}] completed successfully.`);
 });
