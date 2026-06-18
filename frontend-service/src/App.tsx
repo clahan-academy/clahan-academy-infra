@@ -28,6 +28,7 @@ interface Exam {
   schedule_date: string; college_id: string; department_id: string; department_ids?: string[]; batch_id?: string; year: string;
   is_published: boolean; window_open_minutes?: number; mcq_count?: number; coding_count?: number;
   trainer_id?: string | null; trainerId?: string | null; trainer_name?: string | null; trainerName?: string | null;
+  enable_face_detection?: boolean; enableFaceDetection?: boolean;
 }
 interface MCQQuestion {
   id: string; question: string; option_a: string; option_b: string; option_c: string; option_d: string;
@@ -210,13 +211,32 @@ export default function App() {
   const [importSummary, setImportSummary] = useState<any>(null);
 
   // Manual Exam Creation state
-  const [examForm, setExamForm] = useState({
-    name: '', description: '', examType: 'mcq' as 'mcq' | 'coding' | 'both',
+  const [examForm, setExamForm] = useState<{
+    name: string;
+    description: string;
+    examType: 'mcq' | 'coding' | 'both';
+    durationMinutes: number;
+    cutoffPercentage: number;
+    allowedAttempts: number;
+    scheduleDate: string;
+    windowOpenMinutes: number;
+    collegeId: string;
+    departmentId: string;
+    departmentIds: string[];
+    batchId: string;
+    trainerId: string;
+    year: string;
+    enableFaceDetection?: boolean;
+  }>({
+    name: '', description: '', examType: 'mcq',
     durationMinutes: 60, cutoffPercentage: 50, allowedAttempts: 1, scheduleDate: getLocalDatetimeString(),
     windowOpenMinutes: 10,
-    collegeId: '', departmentId: '', departmentIds: [] as string[], batchId: '', trainerId: '', year: '1st Year'
+    collegeId: '', departmentId: '', departmentIds: [], batchId: '', trainerId: '', year: '1st Year',
+    enableFaceDetection: true
   });
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
+  const [terminationModal, setTerminationModal] = useState<{ attemptId: string; studentName: string } | null>(null);
+  const [terminationReason, setTerminationReason] = useState('');
   const [selectedExamIdForQuestions, setSelectedExamIdForQuestions] = useState<string | null>(null);
   const [questionEditorTab, setQuestionEditorTab] = useState<'mcq' | 'coding'>('mcq');
   const [adminSelectedExamMCQs, setAdminSelectedExamMCQs] = useState<MCQQuestion[]>([]);
@@ -1702,7 +1722,8 @@ export default function App() {
         coding_count: 0,
         college_name: colleges.find(c => c.id === examForm.collegeId)?.name || 'College',
         department_name: 'CSE',
-        year: examForm.year
+        year: examForm.year,
+        enable_face_detection: examForm.enableFaceDetection !== false
       };
       setAdminExams(prev => [mockE, ...prev]);
       setSelectedExamIdForQuestions(mockId);
@@ -1731,7 +1752,8 @@ export default function App() {
           name: '', description: '', examType: 'mcq' as 'mcq' | 'coding' | 'both',
           durationMinutes: 60, cutoffPercentage: 50, allowedAttempts: 1, scheduleDate: getLocalDatetimeString(),
           windowOpenMinutes: 10,
-          collegeId: '', departmentId: '', departmentIds: [], batchId: '', trainerId: '', year: '1st Year'
+          collegeId: '', departmentId: '', departmentIds: [], batchId: '', trainerId: '', year: '1st Year',
+          enableFaceDetection: true
         });
         loadAdminDashboard();
       }
@@ -1750,14 +1772,16 @@ export default function App() {
         department_id: examForm.departmentId,
         department_ids: examForm.departmentIds,
         batch_id: examForm.batchId,
-        trainer_id: examForm.trainerId
+        trainer_id: examForm.trainerId,
+        enable_face_detection: examForm.enableFaceDetection !== false
       } : e));
       setEditingExamId(null);
       setExamForm({
         name: '', description: '', examType: 'mcq' as 'mcq' | 'coding' | 'both',
         durationMinutes: 60, cutoffPercentage: 50, allowedAttempts: 1, scheduleDate: getLocalDatetimeString(),
         windowOpenMinutes: 10,
-        collegeId: '', departmentId: '', departmentIds: [], batchId: '', trainerId: '', year: '1st Year'
+        collegeId: '', departmentId: '', departmentIds: [], batchId: '', trainerId: '', year: '1st Year',
+        enableFaceDetection: true
       });
       showToast('Exam configuration updated successfully (Simulated)');
     }
@@ -1790,7 +1814,8 @@ export default function App() {
       departmentIds: ex.department_ids || (ex.department_id ? [ex.department_id] : []),
       batchId: ex.batch_id || '',
       trainerId: ex.trainer_id || '',
-      year: ex.year || '1st Year'
+      year: ex.year || '1st Year',
+      enableFaceDetection: ex.enable_face_detection !== false
     });
     if (ex.college_id) {
       fetchDepartments(ex.college_id);
@@ -2135,6 +2160,11 @@ export default function App() {
   };
 
   const verifyFacePeriodically = async (retryCount: number = 0) => {
+    if (currentExam && (currentExam.enable_face_detection === false || currentExam.enableFaceDetection === false)) {
+      setFaceCheck(true);
+      setHardwareProgress(100);
+      return;
+    }
     if (!videoRef.current) {
       setHardwareProgress(75);
       return;
@@ -5301,6 +5331,18 @@ export default function App() {
 
                       <textarea value={examForm.description} onChange={e => setExamForm({...examForm, description: e.target.value})} placeholder="Exam instructions and general description..." rows={2} className="w-full p-3 border rounded-xl text-xs bg-transparent focus:outline-indigo-500" />
                       
+                      <div className="flex items-center gap-2 p-1">
+                        <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-350 select-none">
+                          <input 
+                            type="checkbox" 
+                            checked={examForm.enableFaceDetection !== false} 
+                            onChange={e => setExamForm({...examForm, enableFaceDetection: e.target.checked})} 
+                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500" 
+                          />
+                          Enable AI Face Detection (background checking for face absence/multiple people)
+                        </label>
+                      </div>
+
                       <button type="submit" className={`w-full py-3 ${editingExamId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-indigo-600 hover:bg-indigo-500'} text-white font-bold rounded-xl text-xs transition-colors`}>
                         {editingExamId ? 'Save Configuration & Reschedule' : 'Configure & Create Exam'}
                       </button>
@@ -5574,6 +5616,18 @@ export default function App() {
                                       </div>
                                     ))}
                                   </div>
+                                )}
+
+                                {session.status === 'active' && (
+                                  <button
+                                    onClick={() => {
+                                      setTerminationModal({ attemptId: session.attemptId, studentName: session.studentName });
+                                      setTerminationReason('');
+                                    }}
+                                    className="mt-3 w-full py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                                  >
+                                    <ShieldAlert className="h-3.5 w-3.5" /> Terminate Exam
+                                  </button>
                                 )}
                               </div>
                             ))}
@@ -7773,6 +7827,60 @@ export default function App() {
             </button>
           </div>
         </main>
+      )}
+
+      {terminationModal && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5 text-rose-500" />
+                  Terminate Student Session
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  You are about to terminate the exam attempt for <span className="font-bold text-slate-800 dark:text-slate-250">{terminationModal.studentName}</span>.
+                </p>
+              </div>
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-550 uppercase">Reason for Termination</label>
+              <textarea
+                value={terminationReason}
+                onChange={e => setTerminationReason(e.target.value)}
+                placeholder="Specify the reason (e.g., Using unauthorized materials, not facing screen)"
+                rows={3}
+                className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent focus:outline-indigo-500 text-slate-900 dark:text-white"
+                required
+              />
+            </div>
+            
+            <div className="flex justify-end gap-2.5 mt-2">
+              <button
+                type="button"
+                onClick={() => setTerminationModal(null)}
+                className="px-4 py-2 border rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!terminationReason.trim()}
+                onClick={() => {
+                  adminSocketRef.current?.emit('admin-terminate-student', {
+                    attemptId: terminationModal.attemptId,
+                    reason: terminationReason.trim()
+                  });
+                  setTerminationModal(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                Terminate Exam
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

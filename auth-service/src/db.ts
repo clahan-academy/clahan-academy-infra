@@ -108,6 +108,7 @@ export async function initDb() {
         year VARCHAR(50),
         window_open_minutes INTEGER DEFAULT 10,
         is_published BOOLEAN DEFAULT FALSE,
+        enable_face_detection BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -147,6 +148,10 @@ export async function initDb() {
 
     await client.query(`
       ALTER TABLE exams ADD COLUMN IF NOT EXISTS trainer_id UUID REFERENCES trainers(id) ON DELETE SET NULL;
+    `);
+
+    await client.query(`
+      ALTER TABLE exams ADD COLUMN IF NOT EXISTS enable_face_detection BOOLEAN DEFAULT TRUE;
     `);
 
     // MCQ Questions
