@@ -122,12 +122,17 @@ Configure the thresholds for warnings and auto-terminations/auto-submissions:
 Build the custom Node.js/Python images and run all services in detached background mode:
 
 ```bash
+# 1. Start core microservices
 docker compose up -d --build
+
+# 2. Start monitoring and telemetry microservices (Prometheus, Grafana, cAdvisor, Node Exporter)
+docker compose -f docker-compose-monitoring.yml up -d
 ```
 
 Verify the health state of all containers:
 ```bash
 docker compose ps
+docker compose -f docker-compose-monitoring.yml ps
 ```
 
 ### Pull the AI LLM Model (Ollama)
@@ -188,7 +193,7 @@ server {
 
     # 3. Grafana Analytics Reverse Proxy
     location /grafana/ {
-        proxy_pass http://127.0.0.1:3000/;
+        proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

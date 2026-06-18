@@ -712,6 +712,59 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
+  // Admin triggers a manual student exam warning
+  socket.on('admin-warn-student', async (data: { attemptId: string; reason: string }) => {
+    const session = activeSessions[socket.id];
+    // Security check: Must be authenticated as admin
+    if (!session || session.role !== 'admin') {
+      console.warn(`Unauthorized warning attempt from socket ${socket.id}`);
+      return;
+    }
+
+    const { attemptId, reason } = data;
+    console.log(`[ADMIN WARNING] Admin ${socket.id} is warning attempt ${attemptId} for reason: ${reason}`);
+
+    try {
+      // 1. Insert proctor log for audit trail
+      await query(
+        `INSERT INTO proctoring_logs (attempt_id, event_type, details, severity)
+         VALUES ($1, 'MANUAL_WARNING', $2, 'warning')`,
+        [attemptId, reason]
+      );
+
+      // 2. Emit manual warning event to student socket/room
+      io.to(`attempt:${attemptId}`).emit('admin-warning', {
+        reason: reason
+      });
+
+      // 3. Broadcast update to admin-monitor so other admins/proctors see the warning
+      const violationsResult = await query(
+        `SELECT event_type, count(*) 
+         FROM proctoring_logs 
+         WHERE attempt_id = $1 
+         GROUP BY event_type`,
+        [attemptId]
+      );
+
+      const counts: Record<string, number> = {};
+      for (const row of violationsResult.rows) {
+        counts[row.event_type] = parseInt(row.count);
+      }
+
+      // Live alert to Admin
+      io.to('admin-monitor').emit('fraud-alert', {
+        attemptId,
+        eventType: 'MANUAL_WARNING',
+        details: reason,
+        severity: 'warning',
+        counts,
+      });
+
+    } catch (err: any) {
+      console.error('Error handling admin-warn-student socket event:', err);
+    }
+  });
+
   socket.on('disconnect', () => {
     const session = activeSessions[socket.id];
     if (session && session.role === 'student') {

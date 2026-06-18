@@ -237,6 +237,8 @@ export default function App() {
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
   const [terminationModal, setTerminationModal] = useState<{ attemptId: string; studentName: string } | null>(null);
   const [terminationReason, setTerminationReason] = useState('');
+  const [warningModal, setWarningModal] = useState<{ attemptId: string; studentName: string } | null>(null);
+  const [warningReason, setWarningReason] = useState('');
   const [selectedExamIdForQuestions, setSelectedExamIdForQuestions] = useState<string | null>(null);
   const [questionEditorTab, setQuestionEditorTab] = useState<'mcq' | 'coding'>('mcq');
   const [adminSelectedExamMCQs, setAdminSelectedExamMCQs] = useState<MCQQuestion[]>([]);
@@ -270,6 +272,7 @@ export default function App() {
   const [micPermission, setMicPermission] = useState<boolean | null>(null);
   const [faceCheck, setFaceCheck] = useState<boolean | null>(null);
   const [fullscreenCheck, setFullscreenCheck] = useState<boolean>(false);
+  const [studentWarningMessage, setStudentWarningMessage] = useState<string | null>(null);
   const [hardwareProgress, setHardwareProgress] = useState(0);
 
   // Ongoing Exam IDE State
@@ -2532,6 +2535,11 @@ export default function App() {
         clearInterval(timerRef.current);
         alert(`Exam terminated automatically: ${data.reason}`);
         handleExamTermination(data.reason, data.autoSubmitted);
+      });
+
+      socket.on('admin-warning', (data: any) => {
+        logDebugEvent(`Admin Warning Received: ${data.reason}`);
+        setStudentWarningMessage(data.reason);
       });
 
     } catch (err) {
@@ -5619,15 +5627,26 @@ export default function App() {
                                 )}
 
                                 {session.status === 'active' && (
-                                  <button
-                                    onClick={() => {
-                                      setTerminationModal({ attemptId: session.attemptId, studentName: session.studentName });
-                                      setTerminationReason('');
-                                    }}
-                                    className="mt-3 w-full py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
-                                  >
-                                    <ShieldAlert className="h-3.5 w-3.5" /> Terminate Exam
-                                  </button>
+                                  <div className="mt-3 flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setWarningModal({ attemptId: session.attemptId, studentName: session.studentName });
+                                        setWarningReason('');
+                                      }}
+                                      className="flex-1 py-1.5 px-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                                    >
+                                      <AlertTriangle className="h-3.5 w-3.5" /> Warn Student
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setTerminationModal({ attemptId: session.attemptId, studentName: session.studentName });
+                                        setTerminationReason('');
+                                      }}
+                                      className="flex-1 py-1.5 px-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                                    >
+                                      <ShieldAlert className="h-3.5 w-3.5" /> Terminate
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             ))}
@@ -7879,6 +7898,94 @@ export default function App() {
                 Terminate Exam
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {warningModal && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  Warn Student candidate
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  You are sending a manual real-time warning to <span className="font-bold text-slate-800 dark:text-slate-250">{warningModal.studentName}</span>.
+                </p>
+              </div>
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-550 uppercase">Warning Message</label>
+              <textarea
+                value={warningReason}
+                onChange={e => setWarningReason(e.target.value)}
+                placeholder="Specify the warning details (e.g., Please adjust your camera view, no cellphones allowed)"
+                rows={3}
+                className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-transparent focus:outline-indigo-500 text-slate-900 dark:text-white"
+                required
+              />
+            </div>
+            
+            <div className="flex justify-end gap-2.5 mt-2">
+              <button
+                type="button"
+                onClick={() => setWarningModal(null)}
+                className="px-4 py-2 border rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!warningReason.trim()}
+                onClick={() => {
+                  adminSocketRef.current?.emit('admin-warn-student', {
+                    attemptId: warningModal.attemptId,
+                    reason: warningReason.trim()
+                  });
+                  setWarningModal(null);
+                }}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                Send Warning
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {studentWarningMessage && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border-2 border-amber-500 rounded-3xl w-full max-w-md shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 border-b border-amber-500/20 pb-3">
+              <div className="p-2 bg-amber-500/10 text-amber-500 rounded-xl">
+                <AlertTriangle className="h-6 w-6 animate-bounce" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-amber-600 dark:text-amber-400">
+                  IMPORTANT PROCTOR WARNING
+                </h3>
+                <p className="text-[10px] text-muted-foreground uppercase font-semibold">
+                  Administrator Warning Issued
+                </p>
+              </div>
+            </div>
+            
+            <div className="py-2">
+              <p className="text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-100 dark:border-slate-850">
+                {studentWarningMessage}
+              </p>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => setStudentWarningMessage(null)}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl text-xs uppercase transition-all shadow-md shadow-amber-500/20"
+            >
+              I Acknowledge & Understand
+            </button>
           </div>
         </div>
       )}

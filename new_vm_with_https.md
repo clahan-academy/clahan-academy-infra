@@ -141,7 +141,7 @@ server {
 
     # Grafana Proxy
     location /grafana/ {
-        proxy_pass http://127.0.0.1:3000/;
+        proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -171,13 +171,17 @@ Follow the prompts (enter your email, accept the license, and opt to redirect al
 From the root directory containing your source code and `docker-compose.yml`, run:
 
 ```bash
-# Build and launch all services in background mode
+# 1. Build and launch all core services in background mode
 docker compose up -d --build
+
+# 2. Build and launch monitoring/telemetry stack
+docker compose -f docker-compose-monitoring.yml up -d
 ```
 
 Verify that all containers are healthy:
 ```bash
 docker compose ps
+docker compose -f docker-compose-monitoring.yml ps
 ```
 
 You can now visit `https://clahanacademy.com` (or your domain name) in your browser!
