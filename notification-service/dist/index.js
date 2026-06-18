@@ -113,8 +113,8 @@ transporter.verify((err, success) => {
     }
 });
 // SendGrid & SMTP Configuration
-const sendGridKey = (process.env.SENDGRID_API_KEY || '').replace(/^"|"$/g, '');
-const sendGridFrom = (process.env.SENDGRID_FROM || 'noreply@clahanacademy.com').replace(/^"|"$/g, '');
+const sendGridKey = (process.env.SENDGRID_API_KEY || '').trim().replace(/^"|"$/g, '').trim();
+const sendGridFrom = (process.env.SENDGRID_FROM || 'noreply@clahanacademy.com').trim().replace(/^"|"$/g, '').trim();
 const isSendGridConfigured = sendGridKey && sendGridKey.startsWith('SG.') && sendGridKey !== 'your_sendgrid_api_key_here';
 if (isSendGridConfigured) {
     mail_1.default.setApiKey(sendGridKey);

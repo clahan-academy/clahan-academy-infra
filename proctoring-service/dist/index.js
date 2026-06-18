@@ -149,6 +149,27 @@ const io = new socket_io_1.Server(server, {
         methods: ['GET', 'POST'],
     },
 });
+const examFaceDetectionCache = {};
+async function isFaceDetectionEnabled(examId) {
+    const now = Date.now();
+    const cached = examFaceDetectionCache[examId];
+    if (cached && cached.expiresAt > now) {
+        return cached.enabled;
+    }
+    try {
+        const res = await query('SELECT enable_face_detection FROM exams WHERE id = $1', [examId]);
+        const enabled = res.rows.length > 0 ? res.rows[0].enable_face_detection !== false : true;
+        examFaceDetectionCache[examId] = {
+            enabled,
+            expiresAt: now + 5000 // Cache for 5 seconds
+        };
+        return enabled;
+    }
+    catch (err) {
+        console.error(`Error querying enable_face_detection for exam ${examId}:`, err);
+        return true;
+    }
+}
 const activeSessions = {};
 // Track consecutive violations in memory (key: attemptId, value: Record<eventType, count>)
 const consecutiveViolations = {};
@@ -415,6 +436,16 @@ io.on('connection', (socket) => {
             });
             if (response.ok) {
                 const result = await response.json();
+                // Fetch if face detection is enabled for this exam
+                const faceDetectionEnabled = await isFaceDetectionEnabled(examId);
+                if (!faceDetectionEnabled) {
+                    // Bypass face detection: strip face-related violations and override lost face flags
+                    result.violations = (result.violations || []).filter((v) => v !== 'NO_FACE_DETECTED' && v !== 'MULTIPLE_FACES_DETECTED');
+                    result.trackingStatus = 'Face Present';
+                    result.facePresent = true;
+                    result.faceLost = false;
+                    result.faceRecovered = false;
+                }
                 // Initialize consecutive violation storage for this attempt
                 consecutiveViolations[attemptId] = consecutiveViolations[attemptId] || {};
                 const consec = consecutiveViolations[attemptId];
@@ -538,6 +569,48 @@ io.on('connection', (socket) => {
         }
         catch (err) {
             console.error('Failed to call AI service for frame analysis:', err.message);
+        }
+    });
+    // Admin triggers a manual student exam termination
+    socket.on('admin-terminate-student', async (data) => {
+        const session = activeSessions[socket.id];
+        // Security check: Must be authenticated as admin
+        if (!session || session.role !== 'admin') {
+            console.warn(`Unauthorized termination attempt from socket ${socket.id}`);
+            return;
+        }
+        const { attemptId, reason } = data;
+        console.log(`[ADMIN TERMINATION] Admin ${socket.id} is terminating attempt ${attemptId} for reason: ${reason}`);
+        try {
+            // 1. Update the database attempt status
+            const fullReason = `Exam manually terminated by Administrator. Reason: ${reason}`;
+            const attemptRes = await query('SELECT student_id, exam_id FROM exam_attempts WHERE id = $1', [attemptId]);
+            if (attemptRes.rows.length === 0) {
+                console.error(`Attempt ${attemptId} not found for termination`);
+                return;
+            }
+            const { student_id: studentId, exam_id: examId } = attemptRes.rows[0];
+            await query(`UPDATE exam_attempts 
+         SET status = 'terminated', score = 0, percentage = 0.00, passed = FALSE, feedback = $1
+         WHERE id = $2`, [fullReason, attemptId]);
+            // 2. Insert critical proctor log for audit trail
+            await query(`INSERT INTO proctoring_logs (attempt_id, event_type, details, severity)
+         VALUES ($1, 'MANUAL_TERMINATION', $2, 'critical')`, [attemptId, reason]);
+            // 3. Emit termination event to student socket/room
+            io.to(`attempt:${attemptId}`).emit('exam-terminated', {
+                reason: fullReason,
+                autoSubmitted: false
+            });
+            // 4. Broadcast to other admins that attempt was terminated
+            io.to('admin-monitor').emit('student-terminated', {
+                attemptId,
+                studentId,
+                reason: fullReason,
+                counts: {}
+            });
+        }
+        catch (err) {
+            console.error('Error handling admin-terminate-student socket event:', err);
         }
     });
     socket.on('disconnect', () => {

@@ -237,7 +237,7 @@ app.get('/api/exams/admin', authenticate, requireRole('admin'), async (req, res)
 // Create Exam
 app.post('/api/exams', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        const { name, description, examType, durationMinutes, cutoffPercentage, allowedAttempts, scheduleDate, collegeId, departmentId, departmentIds, batchId, year, windowOpenMinutes, trainerId } = req.body;
+        const { name, description, examType, durationMinutes, cutoffPercentage, allowedAttempts, scheduleDate, collegeId, departmentId, departmentIds, batchId, year, windowOpenMinutes, trainerId, enableFaceDetection } = req.body;
         if (!name || !examType || !durationMinutes || !scheduleDate || !collegeId) {
             return res.status(400).json({ error: 'Missing required parameters' });
         }
@@ -251,8 +251,8 @@ app.post('/api/exams', authenticate, requireRole('admin'), async (req, res) => {
         const finalYear = batchId ? null : year;
         const result = await query(`INSERT INTO exams (
         name, description, exam_type, duration_minutes, cutoff_percentage, allowed_attempts,
-        schedule_date, college_id, department_id, department_ids, batch_id, year, window_open_minutes, is_published, trainer_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::uuid[], $11, $12, $13, FALSE, $14) RETURNING *`, [name, description || '', examType, durationMinutes, cutoffPercentage || 50, allowedAttempts || 1, scheduleDate, collegeId, finalDeptId, finalDeptIds, batchId || null, finalYear, windowOpenMinutes !== undefined ? windowOpenMinutes : 10, trainerId || null]);
+        schedule_date, college_id, department_id, department_ids, batch_id, year, window_open_minutes, is_published, trainer_id, enable_face_detection
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::uuid[], $11, $12, $13, FALSE, $14, $15) RETURNING *`, [name, description || '', examType, durationMinutes, cutoffPercentage || 50, allowedAttempts || 1, scheduleDate, collegeId, finalDeptId, finalDeptIds, batchId || null, finalYear, windowOpenMinutes !== undefined ? windowOpenMinutes : 10, trainerId || null, enableFaceDetection !== false]);
         res.status(201).json(result.rows[0]);
     }
     catch (err) {
@@ -302,7 +302,7 @@ app.get('/api/exams/:id', authenticate, async (req, res) => {
 // Update Exam
 app.put('/api/exams/:id', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        const { name, description, examType, durationMinutes, cutoffPercentage, allowedAttempts, scheduleDate, collegeId, departmentId, departmentIds, batchId, year, windowOpenMinutes, trainerId } = req.body;
+        const { name, description, examType, durationMinutes, cutoffPercentage, allowedAttempts, scheduleDate, collegeId, departmentId, departmentIds, batchId, year, windowOpenMinutes, trainerId, enableFaceDetection } = req.body;
         if (!name || !examType || !durationMinutes || !scheduleDate || !collegeId) {
             return res.status(400).json({ error: 'Missing required parameters' });
         }
@@ -317,8 +317,8 @@ app.put('/api/exams/:id', authenticate, requireRole('admin'), async (req, res) =
         const result = await query(`UPDATE exams 
        SET name = $1, description = $2, exam_type = $3, duration_minutes = $4,
            cutoff_percentage = $5, allowed_attempts = $6, schedule_date = $7,
-           college_id = $8, department_id = $9, department_ids = $10::uuid[], batch_id = $11, year = $12, window_open_minutes = $13, trainer_id = $14
-       WHERE id = $15 RETURNING *`, [name, description, examType, durationMinutes, cutoffPercentage, allowedAttempts, scheduleDate, collegeId, finalDeptId, finalDeptIds, batchId || null, finalYear, windowOpenMinutes !== undefined ? windowOpenMinutes : 10, trainerId || null, req.params.id]);
+           college_id = $8, department_id = $9, department_ids = $10::uuid[], batch_id = $11, year = $12, window_open_minutes = $13, trainer_id = $14, enable_face_detection = $15
+       WHERE id = $16 RETURNING *`, [name, description, examType, durationMinutes, cutoffPercentage, allowedAttempts, scheduleDate, collegeId, finalDeptId, finalDeptIds, batchId || null, finalYear, windowOpenMinutes !== undefined ? windowOpenMinutes : 10, trainerId || null, enableFaceDetection !== false, req.params.id]);
         if (result.rows.length === 0)
             return res.status(404).json({ error: 'Exam not found' });
         res.json(result.rows[0]);
@@ -337,8 +337,8 @@ app.post('/api/exams/:id/duplicate', authenticate, requireRole('admin'), async (
         if (examCheck.rows.length === 0)
             return res.status(404).json({ error: 'Exam not found' });
         const ex = examCheck.rows[0];
-        const newExam = await query(`INSERT INTO exams (name, description, exam_type, duration_minutes, cutoff_percentage, allowed_attempts, schedule_date, college_id, department_id, department_ids, batch_id, year, window_open_minutes, is_published, trainer_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE, $14) RETURNING *`, [
+        const newExam = await query(`INSERT INTO exams (name, description, exam_type, duration_minutes, cutoff_percentage, allowed_attempts, schedule_date, college_id, department_id, department_ids, batch_id, year, window_open_minutes, is_published, trainer_id, enable_face_detection)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE, $14, $15) RETURNING *`, [
             `Copy of ${ex.name}`,
             ex.description,
             ex.exam_type,
@@ -352,7 +352,8 @@ app.post('/api/exams/:id/duplicate', authenticate, requireRole('admin'), async (
             ex.batch_id || null,
             ex.year,
             ex.window_open_minutes,
-            ex.trainer_id || null
+            ex.trainer_id || null,
+            ex.enable_face_detection !== false
         ]);
         const newExamId = newExam.rows[0].id;
         // Copy MCQs
@@ -1350,6 +1351,9 @@ app.post('/api/exams/student/attempts/:attemptId/terminate', authenticate, requi
             return res.status(404).json({ error: 'Attempt not found' });
         const attempt = attemptResult.rows[0];
         if (attempt.status !== 'ongoing') {
+            if (attempt.status === 'terminated') {
+                return res.json({ message: 'Exam has already been terminated' });
+            }
             return res.status(400).json({ error: 'Exam has already been submitted or terminated' });
         }
         const feedbackStr = `Exam automatically terminated: ${reason || 'Multiple warnings exceeded / screen violations detected.'}`;

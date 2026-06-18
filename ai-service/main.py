@@ -233,6 +233,8 @@ def generate_feedback(req: FeedbackRequest):
             feedback = result.get("response", "").strip().replace('"', '')
             if feedback:
                 return {"feedback": feedback}
+        else:
+            raise Exception(f"Ollama returned status code {response.status_code}")
     except Exception as e:
         logger.warn(f"Ollama call failed, using rule fallback: {str(e)}")
         
@@ -287,6 +289,8 @@ def generate_question(req: GenerateQuestionRequest):
                 
             question_data = json.loads(text)
             return question_data
+        else:
+            raise Exception(f"Ollama returned status code {response.status_code}")
     except Exception as e:
         logger.error(f"Failed to generate question via Ollama: {str(e)}")
         

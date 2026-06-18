@@ -688,9 +688,9 @@ io.on('connection', (socket: Socket) => {
 
       // 2. Insert critical proctor log for audit trail
       await query(
-        `INSERT INTO proctoring_logs (attempt_id, student_id, exam_id, event_type, details, severity)
-         VALUES ($1, $2, $3, 'MANUAL_TERMINATION', $4, 'critical')`,
-        [attemptId, studentId, examId, reason]
+        `INSERT INTO proctoring_logs (attempt_id, event_type, details, severity)
+         VALUES ($1, 'MANUAL_TERMINATION', $2, 'critical')`,
+        [attemptId, reason]
       );
 
       // 3. Emit termination event to student socket/room

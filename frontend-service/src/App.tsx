@@ -5332,12 +5332,12 @@ export default function App() {
                       <textarea value={examForm.description} onChange={e => setExamForm({...examForm, description: e.target.value})} placeholder="Exam instructions and general description..." rows={2} className="w-full p-3 border rounded-xl text-xs bg-transparent focus:outline-indigo-500" />
                       
                       <div className="flex items-center gap-2 p-1">
-                        <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-350 select-none">
+                        <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200 select-none">
                           <input 
                             type="checkbox" 
                             checked={examForm.enableFaceDetection !== false} 
                             onChange={e => setExamForm({...examForm, enableFaceDetection: e.target.checked})} 
-                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500" 
+                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-white dark:bg-slate-900" 
                           />
                           Enable AI Face Detection (background checking for face absence/multiple people)
                         </label>

@@ -1506,6 +1506,9 @@ app.post('/api/exams/student/attempts/:attemptId/terminate', authenticate, requi
     const attempt = attemptResult.rows[0];
 
     if (attempt.status !== 'ongoing') {
+      if (attempt.status === 'terminated') {
+        return res.json({ message: 'Exam has already been terminated' });
+      }
       return res.status(400).json({ error: 'Exam has already been submitted or terminated' });
     }
 
