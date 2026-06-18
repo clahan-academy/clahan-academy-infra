@@ -649,8 +649,8 @@ app.get('/api/exams/student/active', authenticate, requireRole('student'), async
          )
          AND (e.trainer_id IS NULL OR e.trainer_id = $5)
          AND e.is_published = TRUE 
-         AND e.schedule_date <= CURRENT_TIMESTAMP
-         AND CURRENT_TIMESTAMP <= e.schedule_date + (GREATEST(COALESCE(e.window_open_minutes, 10), COALESCE(e.duration_minutes, 60)) * INTERVAL '1 minute')
+         AND e.schedule_date <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+         AND (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') <= e.schedule_date + (GREATEST(COALESCE(e.window_open_minutes, 10), COALESCE(e.duration_minutes, 60)) * INTERVAL '1 minute')
        ORDER BY e.schedule_date DESC`,
       [college_id, department_id, year, batch_id || null, trainer_id || null, studentId]
     );

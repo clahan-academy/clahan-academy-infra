@@ -629,7 +629,7 @@ app.get('/api/admin/dashboard/metrics', authenticateAdmin, async (req, res) => {
     try {
         const totalStudents = await query("SELECT count(*) FROM users WHERE role = 'student'");
         const totalExams = await query("SELECT count(*) FROM exams");
-        const liveExams = await query("SELECT count(*) FROM exams WHERE is_published = TRUE AND schedule_date <= CURRENT_TIMESTAMP");
+        const liveExams = await query("SELECT count(*) FROM exams WHERE is_published = TRUE AND schedule_date <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')");
         const completedExams = await query(`
       SELECT count(distinct exam_id) FROM exam_attempts WHERE status = 'completed'
     `);

@@ -177,7 +177,7 @@ app.get('/api/student/dashboard/summary', authenticateStudent, async (req, res) 
        FROM exams e
        LEFT JOIN colleges c ON e.college_id = c.id
        LEFT JOIN departments d ON e.department_id = d.id
-       WHERE e.college_id = $1 AND e.is_published = TRUE AND e.schedule_date > CURRENT_TIMESTAMP
+       WHERE e.college_id = $1 AND e.is_published = TRUE AND e.schedule_date > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
          AND (
            (e.batch_id IS NOT NULL AND e.batch_id = $4)
            OR
@@ -192,8 +192,8 @@ app.get('/api/student/dashboard/summary', authenticateStudent, async (req, res) 
               (SELECT name FROM batches b WHERE b.id = e.batch_id) as batch_name
        FROM exams e
        WHERE e.college_id = $1 AND e.is_published = TRUE 
-         AND e.schedule_date <= CURRENT_TIMESTAMP
-         AND CURRENT_TIMESTAMP <= e.schedule_date + (GREATEST(COALESCE(e.window_open_minutes, 10), COALESCE(e.duration_minutes, 60)) * INTERVAL '1 minute')
+         AND e.schedule_date <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+         AND (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') <= e.schedule_date + (GREATEST(COALESCE(e.window_open_minutes, 10), COALESCE(e.duration_minutes, 60)) * INTERVAL '1 minute')
          AND (
            (e.batch_id IS NOT NULL AND e.batch_id = $4)
            OR
