@@ -69,6 +69,16 @@ pool.on('error', (err) => {
     console.error('Unexpected error on idle pg client in admin-service:', err);
 });
 const query = (text, params) => pool.query(text, params);
+// Migrate database on startup
+(async () => {
+    try {
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS raw_password VARCHAR(255)');
+        console.log('Successfully ran database migrations in admin-service');
+    }
+    catch (err) {
+        console.error('Error running migrations in admin-service:', err.message);
+    }
+})();
 // Redis client for sending notification events
 const redisClient = (0, redis_1.createClient)({
     url: process.env.REDIS_URL || 'redis://redis:6379',
@@ -336,7 +346,7 @@ app.get('/api/admin/students', authenticateAdmin, async (req, res) => {
         const result = await query(`
       SELECT u.id, u.email, u.full_name, u.phone, u.roll_number, u.year, u.status, u.email_verified, u.created_at,
              c.name as college_name, d.name as department_name, b.name as batch_name, u.college_id, u.department_id, u.batch_id,
-             u.trainer_id, t.name as trainer_name
+             u.trainer_id, t.name as trainer_name, u.raw_password
       FROM users u
       LEFT JOIN colleges c ON u.college_id = c.id
       LEFT JOIN departments d ON u.department_id = d.id
@@ -367,8 +377,8 @@ app.post('/api/admin/students', authenticateAdmin, async (req, res) => {
         const hashedPassword = await bcrypt.hash(plainPassword, 10);
         const result = await query(`INSERT INTO users (
         email, password_hash, role, full_name, phone, roll_number,
-        college_id, department_id, batch_id, year, status, email_verified
-      ) VALUES ($1, $2, 'student', $3, $4, $5, $6, $7, $8, $9, 'active', TRUE) RETURNING *`, [email, hashedPassword, fullName, phone || null, rollNumber, collegeId, departmentId, batchId || null, year]);
+        college_id, department_id, batch_id, year, status, email_verified, raw_password
+      ) VALUES ($1, $2, 'student', $3, $4, $5, $6, $7, $8, $9, 'active', TRUE, $10) RETURNING *`, [email, hashedPassword, fullName, phone || null, rollNumber, collegeId, departmentId, batchId || null, year, plainPassword]);
         // Queue notification email
         queueNotification('CREDENTIAL_EMAIL', {
             email,
@@ -475,8 +485,8 @@ app.post('/api/admin/students/import', authenticateAdmin, async (req, res) => {
                 const hashedPassword = await bcrypt.hash(plainPassword, 10);
                 await query(`INSERT INTO users (
             email, password_hash, role, full_name, phone, roll_number,
-            college_id, department_id, year, status, email_verified
-          ) VALUES ($1, $2, 'student', $3, $4, $5, $6, $7, $8, 'active', TRUE)`, [email, hashedPassword, fullName, phone || null, rollNumber, collegeId, departmentId, year]);
+            college_id, department_id, year, status, email_verified, raw_password
+          ) VALUES ($1, $2, 'student', $3, $4, $5, $6, $7, $8, 'active', TRUE, $9)`, [email, hashedPassword, fullName, phone || null, rollNumber, collegeId, departmentId, year, plainPassword]);
                 // Queue credentials email
                 notificationPayloads.push({
                     email,
@@ -505,7 +515,7 @@ app.post('/api/admin/students/:id/reset-password', authenticateAdmin, async (req
         const { id } = req.params;
         const plainPassword = 'Clahan@' + Math.floor(1000 + Math.random() * 9000).toString();
         const hashedPassword = await bcrypt.hash(plainPassword, 10);
-        const check = await query('UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING email, full_name', [hashedPassword, id]);
+        const check = await query('UPDATE users SET password_hash = $1, raw_password = $2 WHERE id = $3 RETURNING email, full_name', [hashedPassword, plainPassword, id]);
         if (check.rows.length === 0) {
             return res.status(404).json({ error: 'Student not found' });
         }
@@ -527,7 +537,7 @@ app.post('/api/admin/students/:id/resend-credentials', authenticateAdmin, async 
         const { id } = req.params;
         const plainPassword = 'Clahan@' + Math.floor(1000 + Math.random() * 9000).toString();
         const hashedPassword = await bcrypt.hash(plainPassword, 10);
-        const check = await query('UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING email, full_name', [hashedPassword, id]);
+        const check = await query('UPDATE users SET password_hash = $1, raw_password = $2 WHERE id = $3 RETURNING email, full_name', [hashedPassword, plainPassword, id]);
         if (check.rows.length === 0) {
             return res.status(404).json({ error: 'Student not found' });
         }
@@ -538,6 +548,27 @@ app.post('/api/admin/students/:id/resend-credentials', authenticateAdmin, async 
             password: plainPassword
         });
         res.json({ message: 'Credentials resend successful. New credentials generated.', generatedPassword: plainPassword });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// Set password for all students
+app.post('/api/admin/students/set-password-all', authenticateAdmin, async (req, res) => {
+    try {
+        const { password } = req.body;
+        if (!password) {
+            return res.status(400).json({ error: 'Password is required' });
+        }
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const result = await query(`UPDATE users 
+       SET password_hash = $1, raw_password = $2 
+       WHERE role = 'student' 
+       RETURNING id, email, full_name`, [hashedPassword, password]);
+        res.json({
+            message: `Successfully set password for all ${result.rows.length} students.`,
+            updatedCount: result.rows.length
+        });
     }
     catch (err) {
         res.status(500).json({ error: err.message });

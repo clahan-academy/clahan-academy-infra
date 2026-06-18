@@ -21,6 +21,7 @@ interface UserProfile {
   email_verified?: boolean;
   batchId?: string | null; batch_id?: string | null; batchName?: string | null; batch_name?: string | null; college_id?: string | null;
   trainer_id?: string | null; trainerId?: string | null; trainer_name?: string | null; trainerName?: string | null;
+  raw_password?: string; rawPassword?: string;
 }
 interface Exam {
   id: string; name: string; description: string; exam_type: 'mcq' | 'coding' | 'both';
@@ -1949,17 +1950,18 @@ export default function App() {
       showToast('No students matching the selected filters to download.', 'error');
       return;
     }
-    const headers = 'Full Name,Email,Phone,Roll Number,College,Department,Year,Status\n';
+    const headers = 'Full Name,Email,Password,Phone,Roll Number,College,Department,Year,Status\n';
     const rows = filtered.map(s => {
       const fullName = s.fullName || s.full_name || 'N/A';
       const email = s.email || 'N/A';
+      const password = s.raw_password || s.rawPassword || 'N/A';
       const phone = s.phone || 'N/A';
       const rollNumber = s.rollNumber || s.roll_number || 'N/A';
       const college = s.college_name || 'N/A';
       const dept = s.department_name || 'N/A';
       const year = s.year || 'N/A';
       const status = s.status || 'N/A';
-      return `"${fullName.replace(/"/g, '""')}","${email.replace(/"/g, '""')}","${phone.replace(/"/g, '""')}","${rollNumber.replace(/"/g, '""')}","${college.replace(/"/g, '""')}","${dept.replace(/"/g, '""')}","${year.replace(/"/g, '""')}","${status.replace(/"/g, '""')}"`;
+      return `"${fullName.replace(/"/g, '""')}","${email.replace(/"/g, '""')}","${password.replace(/"/g, '""')}","${phone.replace(/"/g, '""')}","${rollNumber.replace(/"/g, '""')}","${college.replace(/"/g, '""')}","${dept.replace(/"/g, '""')}","${year.replace(/"/g, '""')}","${status.replace(/"/g, '""')}"`;
     }).join('\n');
 
     const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
@@ -4823,12 +4825,62 @@ export default function App() {
                           }).length} / {adminStudents.length}
                         </span>
                       </h4>
-                      <button
-                        onClick={downloadStudentsExcel}
-                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow-sm transition-colors"
-                      >
-                        <Download className="h-3.5 w-3.5" /> Download Excel
-                      </button>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2 border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-slate-50 dark:bg-slate-900">
+                          <input
+                            type="text"
+                            placeholder="New password for all..."
+                            id="bulkPasswordInput"
+                            className="bg-transparent text-xs p-1 focus:outline-none w-36 text-slate-900 dark:text-white"
+                          />
+                          <button
+                            onClick={async () => {
+                              const input = document.getElementById('bulkPasswordInput') as HTMLInputElement;
+                              const newPw = input?.value?.trim();
+                              if (!newPw) {
+                                showToast('Please type a password first.', 'warning');
+                                return;
+                              }
+                              if (newPw.length < 6) {
+                                showToast('Password must be at least 6 characters.', 'warning');
+                                return;
+                              }
+                              if (confirm(`Are you sure you want to set the password to "${newPw}" for ALL students?`)) {
+                                try {
+                                  const res = await fetch(`${API_ADMIN}/students/set-password-all`, {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      Authorization: `Bearer ${token}`
+                                    },
+                                    body: JSON.stringify({ password: newPw })
+                                  });
+                                  if (res.ok) {
+                                    const data = await res.json();
+                                    showToast(data.message || 'Bulk password update successful!', 'success');
+                                    if (input) input.value = '';
+                                    loadAdminDashboard();
+                                  } else {
+                                    const err = await res.json();
+                                    showToast(err.error || 'Bulk update failed.', 'error');
+                                  }
+                                } catch (e: any) {
+                                  showToast(`Error updating passwords: ${e.message}`, 'error');
+                                }
+                              }
+                            }}
+                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-[10px] transition-colors"
+                          >
+                            Set Password for All
+                          </button>
+                        </div>
+                        <button
+                          onClick={downloadStudentsExcel}
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow-sm transition-colors"
+                        >
+                          <Download className="h-3.5 w-3.5" /> Download Excel
+                        </button>
+                      </div>
                     </div>
 
                     {/* Filter controls */}
@@ -4915,6 +4967,7 @@ export default function App() {
                             <th>Roll Number</th>
                             <th>College / Dept</th>
                             <th>Year</th>
+                            <th>Password</th>
                             <th>Status</th>
                             <th className="text-right py-3 px-2">Actions</th>
                           </tr>
@@ -4973,6 +5026,11 @@ export default function App() {
                                 </div>
                               </td>
                               <td>{student.year}</td>
+                              <td>
+                                <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono text-[10px] text-indigo-600 dark:text-indigo-400">
+                                  {student.raw_password || student.rawPassword || 'N/A'}
+                                </code>
+                              </td>
                               <td>
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${student.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600'}`}>
                                   {student.status}

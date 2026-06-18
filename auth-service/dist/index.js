@@ -226,8 +226,8 @@ app.post('/api/auth/register', async (req, res) => {
         const result = await (0, db_1.query)(`INSERT INTO users (
         email, password_hash, role, full_name, phone, roll_number,
         college_id, department_id, batch_id, trainer_id, year, github_profile, linkedin_profile,
-        profile_photo_url, status, email_verified
-      ) VALUES ($1, $2, 'student', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending', FALSE) RETURNING id, email, full_name, batch_id`, [
+        profile_photo_url, status, email_verified, raw_password
+      ) VALUES ($1, $2, 'student', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending', FALSE, $14) RETURNING id, email, full_name, batch_id`, [
             email,
             hashedPassword,
             fullName,
@@ -240,7 +240,8 @@ app.post('/api/auth/register', async (req, res) => {
             year,
             githubProfile || null,
             linkedinProfile || null,
-            profilePhotoUrl || null
+            profilePhotoUrl || null,
+            password
         ]);
         const student = result.rows[0];
         // Generate OTP
@@ -498,7 +499,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
             return res.status(400).json({ error: 'Invalid or expired password reset OTP' });
         }
         const hashedPw = await bcrypt.hash(newPassword, 10);
-        await (0, db_1.query)('UPDATE users SET password_hash = $1 WHERE email = $2', [hashedPw, email]);
+        await (0, db_1.query)('UPDATE users SET password_hash = $1, raw_password = $2 WHERE email = $3', [hashedPw, newPassword, email]);
         // Clear reset OTP
         if (redisClient.isOpen) {
             await redisClient.del(`reset_otp:${email}`);
@@ -531,7 +532,7 @@ app.post('/api/auth/change-password', middleware_1.authenticateToken, async (req
             return res.status(400).json({ error: 'Incorrect current password' });
         }
         const hashedPw = await bcrypt.hash(newPassword, 10);
-        await (0, db_1.query)('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPw, userId]);
+        await (0, db_1.query)('UPDATE users SET password_hash = $1, raw_password = $2 WHERE id = $3', [hashedPw, newPassword, userId]);
         res.json({ message: 'Password has been updated successfully' });
     }
     catch (err) {

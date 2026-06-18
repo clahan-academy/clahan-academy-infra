@@ -119,6 +119,10 @@ export async function initDb() {
     `);
 
     await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS raw_password VARCHAR(255);
+    `);
+
+    await client.query(`
       ALTER TABLE exams ADD COLUMN IF NOT EXISTS batch_id UUID REFERENCES batches(id) ON DELETE SET NULL;
     `);
 

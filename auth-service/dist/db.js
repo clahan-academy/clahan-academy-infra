@@ -136,12 +136,16 @@ async function initDb() {
         year VARCHAR(50),
         window_open_minutes INTEGER DEFAULT 10,
         is_published BOOLEAN DEFAULT FALSE,
+        enable_face_detection BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
         // Migrate existing DB if needed
         await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS batch_id UUID REFERENCES batches(id) ON DELETE SET NULL;
+    `);
+        await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS raw_password VARCHAR(255);
     `);
         await client.query(`
       ALTER TABLE exams ADD COLUMN IF NOT EXISTS batch_id UUID REFERENCES batches(id) ON DELETE SET NULL;
@@ -166,6 +170,9 @@ async function initDb() {
     `);
         await client.query(`
       ALTER TABLE exams ADD COLUMN IF NOT EXISTS trainer_id UUID REFERENCES trainers(id) ON DELETE SET NULL;
+    `);
+        await client.query(`
+      ALTER TABLE exams ADD COLUMN IF NOT EXISTS enable_face_detection BOOLEAN DEFAULT TRUE;
     `);
         // MCQ Questions
         await client.query(`
