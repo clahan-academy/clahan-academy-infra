@@ -8,7 +8,7 @@ locals {
 
 # Azure Container Registry - stores all application Docker images
 resource "azurerm_container_registry" "main" {
-  name                          = var.environment == "prod" ? "acrclahan65bf2554prod" : "acrclahan65bf2554"
+  name                          = var.environment == "prod" ? "acrclahan65bf2554" : "acrclahan65bf2554dev"
   resource_group_name           = var.resource_group_name
   location                      = var.location
   sku                           = "Standard"
