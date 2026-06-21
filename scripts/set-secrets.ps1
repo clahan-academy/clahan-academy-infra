@@ -4,7 +4,7 @@
 $ErrorActionPreference = "Stop"
 
 # Target Key Vault name
-$vaultName = "kv-cl06211355"
+$vaultName = "kv-clahan-65bf2554"
 
 # Verify Azure CLI login
 Write-Host "Verifying Azure connection..." -ForegroundColor Cyan
