@@ -20,35 +20,47 @@ if ($null -eq $account) {
     Write-Host "Connected to Azure subscription: $account" -ForegroundColor Green
 }
 
-# List of secrets to set
+# List of secrets with defaults
 $secrets = @(
-    @{ Name = "sonar-token"; Description = "SonarCloud Token for CI static analysis" },
-    @{ Name = "snyk-token"; Description = "Snyk Token for dependency vulnerability scanning" },
-    @{ Name = "smtp-pass"; Description = "SMTP relay server password" },
-    @{ Name = "smtp-user"; Description = "SMTP relay username" },
-    @{ Name = "smtp-from"; Description = "SMTP sender address" },
-    @{ Name = "sendgrid-api-key"; Description = "SendGrid API Key (optional)" },
-    @{ Name = "sendgrid-from"; Description = "SendGrid sender email (optional)" }
+    @{ Name = "sonar-token"; Description = "SonarCloud Token for CI static analysis"; Default = "" },
+    @{ Name = "snyk-token"; Description = "Snyk Token for dependency vulnerability scanning"; Default = "" },
+    @{ Name = "smtp-host"; Description = "SMTP relay host"; Default = "smtp.gmail.com" },
+    @{ Name = "smtp-port"; Description = "SMTP port"; Default = "465" },
+    @{ Name = "smtp-user"; Description = "SMTP username"; Default = "aiexamplatform123@gmail.com" },
+    @{ Name = "smtp-pass"; Description = "SMTP password (app password)"; Default = "zmso iaml jdkh wpxn" },
+    @{ Name = "smtp-from"; Description = "SMTP sender email"; Default = "aiexamplatform123@gmail.com" },
+    @{ Name = "sendgrid-api-key"; Description = "SendGrid API Key"; Default = "" },
+    @{ Name = "sendgrid-from"; Description = "SendGrid sender email"; Default = "noreply@clahanacademy.com" }
 )
 
 Write-Host "`nReady to set secrets in Key Vault: $vaultName" -ForegroundColor Cyan
-Write-Host "Press [Enter] to skip a secret if it is already populated or unchanged.`n" -ForegroundColor DarkGray
+Write-Host "Press [Enter] to use the shown default, or type a new value.`n" -ForegroundColor DarkGray
 
 foreach ($sec in $secrets) {
     $name = $sec.Name
     $desc = $sec.Description
+    $default = $sec.Default
     
-    # Prompt securely for sensitive values
-    $promptMsg = "Enter value for '$name' ($desc):"
-    
-    # If it is a token or password, read as secure string
+    $promptMsg = "Enter value for '$name' ($desc)"
+    if ($default) {
+        $promptMsg += " [default: $default]"
+    }
+    $promptMsg += ":"
+
+    # Read input (securely for passwords if they type a new one, but allow entering default easily)
     if ($name -match "token|pass|key") {
+        # Secure prompt for secret inputs
         $valSecure = Read-Host $promptMsg -AsSecureString
         $value = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
             [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($valSecure)
         )
     } else {
         $value = Read-Host $promptMsg
+    }
+    
+    # If no value entered, use default
+    if ([string]::IsNullOrEmpty($value)) {
+        $value = $default
     }
     
     if (![string]::IsNullOrEmpty($value)) {
@@ -60,7 +72,7 @@ foreach ($sec in $secrets) {
             Write-Host "❌ Failed to update secret '$name': $result`n" -ForegroundColor Red
         }
     } else {
-        Write-Host "Skipped '$name'.`n" -ForegroundColor Gray
+        Write-Host "Skipped '$name' (no value or default provided).`n" -ForegroundColor Gray
     }
 }
 
