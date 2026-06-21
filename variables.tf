@@ -160,3 +160,10 @@ variable "key_vault_name" {
   type        = string
   default     = "kv-clahan-dev"
 }
+
+variable "domain_name" {
+  description = "Custom domain name for the application"
+  type        = string
+  default     = "clahaanacademy.online"
+}
+

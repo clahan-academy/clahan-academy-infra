@@ -131,6 +131,44 @@ module "jumpvm" {
   tags                = local.tags
 }
 
+module "redis" {
+  source = "./modules/redis"
+
+  resource_group_name = module.networking.resource_group_name
+  location            = var.location
+  redis_capacity      = var.redis_capacity
+  key_vault_id        = module.keyvault.key_vault_id
+  tags                = local.tags
+}
+
+module "functions" {
+  source = "./modules/functions"
+
+  resource_group_name              = module.networking.resource_group_name
+  location                         = var.location
+  storage_account_name             = module.storage.storage_account_name
+  storage_account_key              = module.storage.primary_access_key
+  app_insights_instrumentation_key = module.monitoring.app_insights_instrumentation_key
+  app_insights_connection_string  = module.monitoring.app_insights_connection_string
+  key_vault_id                     = module.keyvault.key_vault_id
+  aks_cluster_id                   = module.aks.cluster_id
+  redis_hostname                   = module.redis.redis_hostname
+  postgres_fqdn                    = module.postgres.server_fqdn
+  admin_email                      = var.admin_email
+  tags                             = local.tags
+}
+
+module "appgw" {
+  source = "./modules/appgw"
+
+  resource_group_name = module.networking.resource_group_name
+  location            = var.location
+  subnet_appgw_id     = module.networking.subnet_appgw_id
+  key_vault_id        = module.keyvault.key_vault_id
+  domain_name         = var.domain_name
+  tags                = local.tags
+}
+
 # DB Secrets at root level to avoid circular dependency
 resource "azurerm_key_vault_secret" "db_connection_string" {
   name         = "db-connection-string"
@@ -158,3 +196,4 @@ resource "azurerm_key_vault_secret" "postgres_admin_password" {
   tags         = local.tags
   depends_on   = [module.keyvault, module.postgres]
 }
+
