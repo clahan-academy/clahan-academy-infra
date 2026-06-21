@@ -2,7 +2,7 @@
 
 output "redis_id" {
   description = "Resource ID of the Redis cache"
-  value       = azapi_resource.redis.id
+  value       = var.environment == "prod" ? azapi_resource.redis[0].id : null
 }
 
 output "redis_hostname" {

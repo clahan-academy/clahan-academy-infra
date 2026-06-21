@@ -14,13 +14,14 @@ locals {
     module = "redis"
   })
 
-  redis_key               = jsondecode(data.azapi_resource_action.redis_keys.output).primaryKey
-  redis_host              = jsondecode(azapi_resource.redis.output).properties.hostName
-  redis_connection_string = "rediss://:${local.redis_key}@${local.redis_host}:10000"
+  redis_key               = var.environment == "prod" ? jsondecode(data.azapi_resource_action.redis_keys[0].output).primaryKey : "dummy_dev_key"
+  redis_host              = var.environment == "prod" ? jsondecode(azapi_resource.redis[0].output).properties.hostName : "redis"
+  redis_connection_string = var.environment == "prod" ? "rediss://:${local.redis_key}@${local.redis_host}:10000" : "redis://redis:6379"
 }
 
 # Generate a unique suffix for the Redis Enterprise name
 resource "random_string" "redis_suffix" {
+  count   = var.environment == "prod" ? 1 : 0
   length  = 6
   special = false
   upper   = false
@@ -29,9 +30,10 @@ resource "random_string" "redis_suffix" {
 
 # Provision Redis Enterprise cluster (Azure Managed Redis)
 resource "azapi_resource" "redis" {
+  count                     = var.environment == "prod" ? 1 : 0
   type                      = "Microsoft.Cache/redisEnterprise@2024-10-01"
   schema_validation_enabled = false
-  name                      = var.environment == "prod" ? "redis-clahan-prod-${random_string.redis_suffix.result}" : "redis-clahan-dev-${random_string.redis_suffix.result}"
+  name                      = "redis-clahan-prod-${random_string.redis_suffix[0].result}"
   parent_id                 = var.resource_group_id
   location                  = var.location
 
@@ -49,10 +51,11 @@ resource "azapi_resource" "redis" {
 
 # Provision default database under the cluster
 resource "azapi_resource" "redis_db" {
+  count                     = var.environment == "prod" ? 1 : 0
   type                      = "Microsoft.Cache/redisEnterprise/databases@2024-10-01"
   schema_validation_enabled = false
   name                      = "default"
-  parent_id                 = azapi_resource.redis.id
+  parent_id                 = azapi_resource.redis[0].id
 
   body = {
     properties = {
@@ -66,8 +69,9 @@ resource "azapi_resource" "redis_db" {
 
 # Fetch access keys for connection string
 data "azapi_resource_action" "redis_keys" {
+  count       = var.environment == "prod" ? 1 : 0
   type        = "Microsoft.Cache/redisEnterprise/databases@2024-10-01"
-  resource_id = azapi_resource.redis_db.id
+  resource_id = azapi_resource.redis_db[0].id
   action      = "listKeys"
 }
 
