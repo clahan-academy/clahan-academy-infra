@@ -2,7 +2,7 @@
 
 output "redis_id" {
   description = "Resource ID of the Redis cache"
-  value       = var.environment == "prod" ? azurerm_redis_enterprise_cluster.redis[0].id : null
+  value       = var.environment == "prod" ? azurerm_redis_cache.main[0].id : null
 }
 
 output "redis_hostname" {
@@ -12,7 +12,7 @@ output "redis_hostname" {
 
 output "redis_ssl_port" {
   description = "SSL port of the Redis cache"
-  value       = 10000
+  value       = 6380
 }
 
 output "redis_primary_key" {
