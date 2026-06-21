@@ -95,7 +95,7 @@ module "aks" {
   location                   = var.location
   resource_group_name        = module.networking.resource_group_name
   resource_group_id          = module.networking.resource_group_id
-  kubernetes_version = "1.35"
+  kubernetes_version         = "1.35"
   dns_prefix                 = "clahan"
   subnet_aks_id              = module.networking.subnet_aks_id
   vnet_id                    = module.networking.vnet_id
@@ -153,7 +153,7 @@ module "functions" {
   storage_account_name             = module.storage.storage_account_name
   storage_account_key              = module.storage.primary_access_key
   app_insights_instrumentation_key = module.monitoring.app_insights_instrumentation_key
-  app_insights_connection_string  = module.monitoring.app_insights_connection_string
+  app_insights_connection_string   = module.monitoring.app_insights_connection_string
   key_vault_id                     = module.keyvault.key_vault_id
   aks_cluster_id                   = module.aks.cluster_id
   redis_hostname                   = module.redis.redis_hostname

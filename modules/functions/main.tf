@@ -51,9 +51,9 @@ resource "azurerm_linux_function_app" "main" {
     "ADMIN_EMAIL"                           = var.admin_email
     "AKS_RESOURCE_GROUP"                    = var.resource_group_name
 
-    "AKS_CLUSTER_NAME"                      = "aks-clahan-academy"
-    "REDIS_HOSTNAME"                        = var.redis_hostname
-    "POSTGRES_FQDN"                         = var.postgres_fqdn
+    "AKS_CLUSTER_NAME" = "aks-clahan-academy"
+    "REDIS_HOSTNAME"   = var.redis_hostname
+    "POSTGRES_FQDN"    = var.postgres_fqdn
   }
 
   tags = local.tags
