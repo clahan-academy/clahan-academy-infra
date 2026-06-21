@@ -250,7 +250,12 @@ jobs:
       
       - name: Terraform Apply or Destroy
         working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: terraform apply -auto-approve tfplan
+        run: |
+          if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
+            terraform destroy -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
+          else
+            terraform apply -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
+          fi
       
       - name: Show outputs
         working-directory: ${{ needs.setup.outputs.tf_dir }}
