@@ -2,22 +2,22 @@
 
 output "redis_id" {
   description = "Resource ID of the Redis cache"
-  value       = azapi_resource.redis.id
+  value       = azurerm_redis_cache.main.id
 }
 
 output "redis_hostname" {
   description = "Hostname of the Redis cache"
-  value       = local.redis_host
+  value       = azurerm_redis_cache.main.hostname
 }
 
 output "redis_ssl_port" {
   description = "SSL port of the Redis cache"
-  value       = 10000
+  value       = 6380
 }
 
 output "redis_primary_key" {
   description = "Primary access key for Redis"
-  value       = local.redis_key
+  value       = azurerm_redis_cache.main.primary_access_key
   sensitive   = true
 }
 

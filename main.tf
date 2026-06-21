@@ -144,6 +144,7 @@ module "redis" {
   location            = var.location
   redis_capacity      = var.redis_capacity
   key_vault_id        = module.keyvault.key_vault_id
+  environment         = var.environment
   tags                = local.tags
 }
 

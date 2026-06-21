@@ -32,3 +32,8 @@ variable "resource_group_id" {
   description = "Resource ID of the resource group"
   type        = string
 }
+
+variable "environment" {
+  description = "Deployment environment"
+  type        = string
+}
