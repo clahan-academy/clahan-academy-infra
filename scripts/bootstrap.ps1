@@ -3,8 +3,7 @@
 
 $Location = "eastus2"
 $TfResourceGroup = "rg-clahan-tfstate"
-$TfStorageAccount = "stclahantfstate"
-$TfContainer = "tfstate"
+$TfStorageAccountBase = "stclahantfstate"
 $SpName = "sp-github-clahan-ci"
 
 Write-Host "============================================" -ForegroundColor Cyan
@@ -44,8 +43,13 @@ $SubscriptionId = (az account show --query id -o tsv)
 $TenantId = (az account show --query tenantId -o tsv)
 $SubName = (az account show --query name -o tsv)
 
+# Generate a globally unique storage account name by appending the subscription ID hash
+$SubSuffix = $SubscriptionId.Split("-")[0]
+$TfStorageAccount = "$TfStorageAccountBase$SubSuffix"
+
 Write-Host "[INFO] Using subscription: $SubName ($SubscriptionId)" -ForegroundColor Green
 Write-Host "[INFO] Using Tenant: $TenantId" -ForegroundColor Green
+Write-Host "[INFO] Generated storage name: $TfStorageAccount" -ForegroundColor Green
 
 $Confirm = Read-Host "Is this subscription correct? (y/n)"
 if ($Confirm -ne "y" -and $Confirm -ne "Y") {
@@ -70,7 +74,13 @@ if (az group show --name $TfResourceGroup 2>$null) {
 if (az storage account show --name $TfStorageAccount --resource-group $TfResourceGroup 2>$null) {
     Write-Host "[WARN] Storage account $TfStorageAccount already exists, skipping" -ForegroundColor Yellow
 } else {
+    Write-Host "[INFO] Creating storage account $TfStorageAccount..." -ForegroundColor Cyan
+    $ErrorActionPreference = "Continue"
     az storage account create --name $TfStorageAccount --resource-group $TfResourceGroup --location $Location --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --allow-blob-public-access false --tags project=clahan-academy purpose=terraform-state | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Failed to create storage account. Please check if name is valid." -ForegroundColor Red
+        Exit 1
+    }
     Write-Host "[OK] Storage account created: $TfStorageAccount" -ForegroundColor Green
 }
 
@@ -106,8 +116,17 @@ if (-not $SpObjectId -or $SpObjectId -eq "null" -or $SpObjectId -eq "") {
 
 $RoleExists = (az role assignment list --assignee $AppId --role "Contributor" --scope "/subscriptions/$SubscriptionId" --query "[0].id" -o tsv 2>$null)
 if (-not $RoleExists -or $RoleExists -eq "null" -or $RoleExists -eq "") {
-    az role assignment create --role "Contributor" --assignee $AppId --scope "/subscriptions/$SubscriptionId" | Out-Null
-    Write-Host "[OK] Contributor role assigned" -ForegroundColor Green
+    Write-Host "[INFO] Assigning Contributor role to Service Principal..." -ForegroundColor Cyan
+    az role assignment create --role "Contributor" --assignee $AppId --scope "/subscriptions/$SubscriptionId" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Red
+        Write-Host "[ERROR] AuthorizationFailed: You do not have permissions to write role assignments." -ForegroundColor Red
+        Write-Host "To resolve this, please ask your Azure Subscription Administrator to grant you" -ForegroundColor Yellow
+        Write-Host "the 'User Access Administrator' or 'Owner' role on this subscription." -ForegroundColor Yellow
+        Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Red
+    } else {
+        Write-Host "[OK] Contributor role assigned" -ForegroundColor Green
+    }
 } else {
     Write-Host "[WARN] Contributor role already assigned" -ForegroundColor Yellow
 }
@@ -128,8 +147,10 @@ function Create-FederatedCredential {
             audiences = @("api://AzureADTokenExchange")
         }
         $ParamsJson = $ParamsObj | ConvertTo-Json -Compress
-        $ParamsEscaped = $ParamsJson.Replace('"', '\"')
-        az ad app federated-credential create --id $AppId --parameters $ParamsEscaped | Out-Null
+        $TempFile = [System.IO.Path]::GetTempFileName()
+        $ParamsJson | Out-File -FilePath $TempFile -Encoding ascii
+        az ad app federated-credential create --id $AppId --parameters "@$TempFile" | Out-Null
+        Remove-Item $TempFile
         Write-Host "[OK] Federated credential $CredName created" -ForegroundColor Green
     }
 }
@@ -167,7 +188,7 @@ $Lines = @(
     "",
     "--- Terraform State Backend ---",
     "Resource Group:    rg-clahan-tfstate",
-    "Storage Account:   stclahantfstate",
+    "Storage Account:   $TfStorageAccount",
     "Container:         tfstate",
     "State Key:         dev/terraform.tfstate",
     "",
@@ -215,4 +236,5 @@ Write-Host "   - db_password (choose a strong password)" -ForegroundColor Yellow
 Write-Host "   - smtp_user, smtp_pass, smtp_from" -ForegroundColor Yellow
 Write-Host "   - snyk_token, sonar_token" -ForegroundColor Yellow
 Write-Host "3. Add AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_SUBSCRIPTION_ID to GitHub Secrets" -ForegroundColor Yellow
-Write-Host "4. Commit changes and trigger the terraform-apply workflow on GitHub!" -ForegroundColor Yellow
+Write-Host "4. Update your backend.tf file (line 7) with the generated storage_account_name ($TfStorageAccount)." -ForegroundColor Yellow
+Write-Host "5. Commit changes and trigger the terraform-apply workflow on GitHub!" -ForegroundColor Yellow
