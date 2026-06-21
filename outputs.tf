@@ -63,12 +63,12 @@ output "app_insights_name" {
 
 output "jump_vm_name" {
   description = "Jump VM name for Bastion access"
-  value       = module.jumpvm.vm_name
+  value       = try(module.jumpvm[0].vm_name, "disabled")
 }
 
 output "jump_vm_private_ip" {
   description = "Jump VM private IP address"
-  value       = module.jumpvm.vm_private_ip
+  value       = try(module.jumpvm[0].vm_private_ip, "disabled")
 }
 
 output "application_url" {

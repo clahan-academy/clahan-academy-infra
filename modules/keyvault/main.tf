@@ -43,10 +43,6 @@ resource "azurerm_role_assignment" "github_secrets_user" {
   principal_id                     = var.github_sp_object_id
   scope                            = azurerm_key_vault.main.id
   skip_service_principal_aad_check = true
-
-  lifecycle {
-    ignore_changes = all
-  }
 }
 
 # Wait 240 seconds for RBAC to propagate before writing secrets

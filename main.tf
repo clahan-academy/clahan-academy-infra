@@ -18,6 +18,7 @@ module "networking" {
 
   resource_group_name = var.resource_group_name
   location            = var.location
+  enable_bastion      = var.enable_jumpvm
   tags                = local.tags
 }
 
@@ -121,6 +122,7 @@ module "identity" {
 }
 
 module "jumpvm" {
+  count  = var.enable_jumpvm ? 1 : 0
   source = "./modules/jumpvm"
 
   resource_group_name = module.networking.resource_group_name
@@ -136,28 +138,29 @@ module "redis" {
 
   resource_group_name = module.networking.resource_group_name
   resource_group_id   = module.networking.resource_group_id
-  location            = "eastus"
+  location            = var.location
   redis_capacity      = var.redis_capacity
   key_vault_id        = module.keyvault.key_vault_id
   tags                = local.tags
 }
 
-# module "functions" {
-#   source = "./modules/functions"
-# 
-#   resource_group_name              = module.networking.resource_group_name
-#   location                         = var.location
-#   storage_account_name             = module.storage.storage_account_name
-#   storage_account_key              = module.storage.primary_access_key
-#   app_insights_instrumentation_key = module.monitoring.app_insights_instrumentation_key
-#   app_insights_connection_string  = module.monitoring.app_insights_connection_string
-#   key_vault_id                     = module.keyvault.key_vault_id
-#   aks_cluster_id                   = module.aks.cluster_id
-#   redis_hostname                   = module.redis.redis_hostname
-#   postgres_fqdn                    = module.postgres.server_fqdn
-#   admin_email                      = var.admin_email
-#   tags                             = local.tags
-# }
+module "functions" {
+  count  = var.enable_functions ? 1 : 0
+  source = "./modules/functions"
+
+  resource_group_name              = module.networking.resource_group_name
+  location                         = var.location
+  storage_account_name             = module.storage.storage_account_name
+  storage_account_key              = module.storage.primary_access_key
+  app_insights_instrumentation_key = module.monitoring.app_insights_instrumentation_key
+  app_insights_connection_string  = module.monitoring.app_insights_connection_string
+  key_vault_id                     = module.keyvault.key_vault_id
+  aks_cluster_id                   = module.aks.cluster_id
+  redis_hostname                   = module.redis.redis_hostname
+  postgres_fqdn                    = module.postgres.server_fqdn
+  admin_email                      = var.admin_email
+  tags                             = local.tags
+}
 
 module "appgw" {
   source = "./modules/appgw"

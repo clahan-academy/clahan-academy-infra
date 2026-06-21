@@ -167,3 +167,15 @@ variable "domain_name" {
   default     = "clahaanacademy.online"
 }
 
+variable "enable_functions" {
+  description = "Enable resource health monitor functions app"
+  type        = bool
+  default     = true
+}
+
+variable "enable_jumpvm" {
+  description = "Enable Jump VM + Bastion for secure management access (disable in dev to save cost, use az aks command invoke instead)"
+  type        = bool
+  default     = true
+}
+

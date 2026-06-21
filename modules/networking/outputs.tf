@@ -73,10 +73,10 @@ output "private_dns_zone_names" {
 
 output "bastion_name" {
   description = "Name of the Azure Bastion host"
-  value       = azurerm_bastion_host.main.name
+  value       = try(azurerm_bastion_host.main[0].name, "")
 }
 
 output "bastion_id" {
   description = "ID of the Azure Bastion host"
-  value       = azurerm_bastion_host.main.id
+  value       = try(azurerm_bastion_host.main[0].id, "")
 }

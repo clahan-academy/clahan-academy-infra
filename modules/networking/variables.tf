@@ -16,3 +16,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_bastion" {
+  description = "Enable Azure Bastion host for secure VM access"
+  type        = bool
+  default     = true
+}

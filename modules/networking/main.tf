@@ -381,6 +381,7 @@ resource "azurerm_subnet_network_security_group_association" "functions" {
 
 # Public IP address assigned to Azure Bastion host
 resource "azurerm_public_ip" "bastion" {
+  count               = var.enable_bastion ? 1 : 0
   name                = "pip-bastion-clahan"
   location            = var.location
   resource_group_name = azurerm_resource_group.main.name
@@ -391,6 +392,7 @@ resource "azurerm_public_ip" "bastion" {
 
 # Azure Bastion Host providing secure RDP/SSH access
 resource "azurerm_bastion_host" "main" {
+  count               = var.enable_bastion ? 1 : 0
   name                = "bastion-clahan-academy"
   location            = var.location
   resource_group_name = azurerm_resource_group.main.name
@@ -400,7 +402,7 @@ resource "azurerm_bastion_host" "main" {
   ip_configuration {
     name                 = "bastion-ip-config"
     subnet_id            = azurerm_subnet.bastion.id
-    public_ip_address_id = azurerm_public_ip.bastion.id
+    public_ip_address_id = azurerm_public_ip.bastion[0].id
   }
 }
 

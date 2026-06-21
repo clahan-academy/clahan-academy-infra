@@ -5,10 +5,16 @@ name: "IaC — Terraform Plan & Apply"
 on:
   push:
     branches: [main]
-    paths: ["terraform/**"]
+    paths:
+      - '*.tf'
+      - 'modules/**'
+      - 'environments/**'
   pull_request:
     branches: [main]
-    paths: ["terraform/**"]
+    paths:
+      - '*.tf'
+      - 'modules/**'
+      - 'environments/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -163,9 +169,9 @@ jobs:
         working-directory: ${{ needs.setup.outputs.tf_dir }}
         run: |
           if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
-            terraform plan -destroy -out=tfplan -detailed-exitcode -no-color 2>&1 | tee plan-output.txt
+            terraform plan -destroy -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan -detailed-exitcode -no-color 2>&1 | tee plan-output.txt
           else
-            terraform plan -out=tfplan -detailed-exitcode -no-color 2>&1 | tee plan-output.txt
+            terraform plan -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan -detailed-exitcode -no-color 2>&1 | tee plan-output.txt
           fi
           echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
