@@ -30,6 +30,7 @@ resource "azurerm_key_vault" "main" {
 
 # Deployer gets Secrets Officer (deployer is a User not SP)
 resource "azurerm_role_assignment" "deployer_secrets_officer" {
+  name                 = uuidv5("dns", "${var.deployer_object_id}-kv-admin-${azurerm_key_vault.main.name}")
   role_definition_name = "Key Vault Administrator"
   principal_id         = var.deployer_object_id
   scope                = azurerm_key_vault.main.id
@@ -41,6 +42,7 @@ resource "azurerm_role_assignment" "deployer_secrets_officer" {
 
 # GitHub Actions gets Secrets User
 resource "azurerm_role_assignment" "github_secrets_user" {
+  name                             = uuidv5("dns", "${var.github_sp_object_id}-kv-user-${azurerm_key_vault.main.name}")
   role_definition_name             = "Key Vault Secrets User"
   principal_id                     = var.github_sp_object_id
   scope                            = azurerm_key_vault.main.id
