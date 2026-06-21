@@ -65,7 +65,7 @@ jobs:
             ENV="dev"
           fi
           echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "tf_dir=terraform/environments/$ENV" >> $GITHUB_OUTPUT
+          echo "tf_dir=." >> $GITHUB_OUTPUT
           echo "🌍 Environment: $ENV"
 
   terraform-validate:
