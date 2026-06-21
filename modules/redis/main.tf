@@ -14,8 +14,8 @@ locals {
     module = "redis"
   })
 
-  redis_key               = jsondecode(data.azapi_resource_action.redis_keys.output).primaryKey
-  redis_host              = jsondecode(azapi_resource.redis.output).properties.hostName
+  redis_key               = try(jsondecode(data.azapi_resource_action.redis_keys.output).primaryKey, "dummy_key")
+  redis_host              = try(jsondecode(azapi_resource.redis.output).properties.hostName, "dummy_host")
   redis_connection_string = "rediss://:${local.redis_key}@${local.redis_host}:10000"
 }
 

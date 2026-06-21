@@ -34,10 +34,6 @@ resource "azurerm_role_assignment" "deployer_secrets_officer" {
   role_definition_name = "Key Vault Administrator"
   principal_id         = var.deployer_object_id
   scope                = azurerm_key_vault.main.id
-
-  lifecycle {
-    ignore_changes = all
-  }
 }
 
 # GitHub Actions gets Secrets User
