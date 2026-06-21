@@ -27,3 +27,8 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "resource_group_id" {
+  description = "Resource ID of the resource group"
+  type        = string
+}

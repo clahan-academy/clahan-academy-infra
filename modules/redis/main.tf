@@ -1,39 +1,75 @@
 # terraform/modules/redis/main.tf
-# Azure Cache for Redis - used for BullMQ job queue and session caching
+# Azure Managed Redis (Enterprise) - used for BullMQ job queue and session caching
+
+terraform {
+  required_providers {
+    azapi = {
+      source = "azure/azapi"
+    }
+  }
+}
 
 locals {
   tags = merge(var.tags, {
     module = "redis"
   })
 
-  redis_connection_string = "rediss://:${azurerm_redis_cache.main.primary_access_key}@${azurerm_redis_cache.main.hostname}:6380"
+  redis_key               = jsondecode(data.azapi_resource_action.redis_keys.output).primaryKey
+  redis_host              = jsondecode(azapi_resource.redis.output).properties.hostName
+  redis_connection_string = "rediss://:${local.redis_key}@${local.redis_host}:10000"
 }
 
-resource "azurerm_redis_cache" "main" {
-  name                = "redis-clahan-academy"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  capacity            = var.redis_capacity
-  family              = "C"
-  sku_name            = "Standard"
-  minimum_tls_version = "1.2"
-  enable_non_ssl_port = false
+# Generate a unique suffix for the Redis Enterprise name
+resource "random_string" "redis_suffix" {
+  length  = 6
+  special = false
+  upper   = false
+  numeric = true
+}
 
-  redis_configuration {
-    enable_authentication           = true
-    maxmemory_policy                = "allkeys-lru"
-    maxmemory_reserved              = 50
-    maxfragmentationmemory_reserved = 50
-  }
+# Provision Redis Enterprise cluster
+resource "azapi_resource" "redis" {
+  type      = "Microsoft.Cache/redisEnterprise@2024-02-01"
+  name      = "redis-clahan-${random_string.redis_suffix.result}"
+  parent_id = var.resource_group_id
+  location  = var.location
 
-  patch_schedule {
-    day_of_week    = "Sunday"
-    start_hour_utc = 2
+  body = {
+    sku = {
+      name = "Balanced_B0"
+    }
+    properties = {
+      minimumTlsVersion = "1.2"
+    }
   }
 
   tags = local.tags
 }
 
+# Provision default database under the cluster
+resource "azapi_resource" "redis_db" {
+  type      = "Microsoft.Cache/redisEnterprise/databases@2024-02-01"
+  name      = "default"
+  parent_id = azapi_resource.redis.id
+
+  body = {
+    properties = {
+      clientProtocol   = "Encrypted"
+      clusteringPolicy = "OSSCluster"
+      evictionPolicy   = "VolatileLRU"
+      port             = 10000
+    }
+  }
+}
+
+# Fetch access keys for connection string
+data "azapi_resource_action" "redis_keys" {
+  type        = "Microsoft.Cache/redisEnterprise/databases@2024-02-01"
+  resource_id = azapi_resource.redis_db.id
+  action      = "listKeys"
+}
+
+# Save connection details to Key Vault
 resource "azurerm_key_vault_secret" "redis_connection_string" {
   name         = "redis-connection-string"
   value        = local.redis_connection_string
@@ -44,7 +80,7 @@ resource "azurerm_key_vault_secret" "redis_connection_string" {
 
 resource "azurerm_key_vault_secret" "redis_primary_key" {
   name         = "redis-primary-key"
-  value        = azurerm_redis_cache.main.primary_access_key
+  value        = local.redis_key
   key_vault_id = var.key_vault_id
   content_type = "text/plain"
   tags         = local.tags

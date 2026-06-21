@@ -30,7 +30,7 @@ resource "azurerm_key_vault" "main" {
 
 # Deployer gets Secrets Officer (deployer is a User not SP)
 resource "azurerm_role_assignment" "deployer_secrets_officer" {
-  role_definition_name = "Key Vault Secrets Officer"
+  role_definition_name = "Key Vault Administrator"
   principal_id         = var.deployer_object_id
   scope                = azurerm_key_vault.main.id
 

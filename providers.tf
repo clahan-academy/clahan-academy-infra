@@ -20,6 +20,10 @@ terraform {
       source  = "hashicorp/time"
       version = "~> 0.11"
     }
+    azapi = {
+      source  = "azure/azapi"
+      version = "~> 1.13"
+    }
   }
 }
 
@@ -46,3 +50,5 @@ provider "azuread" {
 provider "random" {}
 
 provider "time" {}
+
+provider "azapi" {}

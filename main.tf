@@ -135,6 +135,7 @@ module "redis" {
   source = "./modules/redis"
 
   resource_group_name = module.networking.resource_group_name
+  resource_group_id   = module.networking.resource_group_id
   location            = var.location
   redis_capacity      = var.redis_capacity
   key_vault_id        = module.keyvault.key_vault_id
@@ -145,7 +146,7 @@ module "functions" {
   source = "./modules/functions"
 
   resource_group_name              = module.networking.resource_group_name
-  location                         = var.location
+  location                         = "eastus"
   storage_account_name             = module.storage.storage_account_name
   storage_account_key              = module.storage.primary_access_key
   app_insights_instrumentation_key = module.monitoring.app_insights_instrumentation_key
