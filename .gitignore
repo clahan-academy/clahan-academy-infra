@@ -1,0 +1,10 @@
+﻿*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfplan
+environments/dev.tfvars
+environments/prod.tfvars
+.bootstrap-output.txt
+.vscode/
+.DS_Store
