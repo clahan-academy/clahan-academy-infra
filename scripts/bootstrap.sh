@@ -26,9 +26,10 @@ print_banner() {
   echo "Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â"
 }
 
-# EXACT VALUES TO USE (hardcode these in the script)
-SUBSCRIPTION_ID="34c41824-bb7a-4316-af37-2597f35b730e"
-TENANT_ID="67e6de35-58f8-4419-b1c4-1e5d7c49e04b"
+# Log in to Azure if not already authenticated
+# EXACT VALUES TO USE (will be dynamically auto-detected in Section 2)
+SUBSCRIPTION_ID=""
+TENANT_ID=""
 GITHUB_USER="M-VIGNESH3"
 GITHUB_REPO="clahan-academy"
 LOCATION="eastus2"
@@ -83,6 +84,9 @@ if ! az account show &>/dev/null; then
   info "Ã°Å¸â€Â Not logged in. Opening browser..."
   az login
 fi
+
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+TENANT_ID=$(az account show --query tenantId -o tsv)
 
 info "Setting subscription to $SUBSCRIPTION_ID..."
 az account set --subscription "$SUBSCRIPTION_ID"
@@ -225,8 +229,8 @@ State Key:         dev/terraform.tfstate
 Display Name:      sp-github-clahan-ci
 Client ID:         $APP_ID
 SP Object ID:      $SP_OBJECT_ID
-Tenant ID:         67e6de35-58f8-4419-b1c4-1e5d7c49e04b
-Subscription ID:   34c41824-bb7a-4316-af37-2597f35b730e
+Tenant ID:         $TENANT_ID
+Subscription ID:   $SUBSCRIPTION_ID
 
 --- Deployer ---
 Object ID:         $DEPLOYER_OBJECT_ID
@@ -234,18 +238,18 @@ Object ID:         $DEPLOYER_OBJECT_ID
 ============================================
 COPY THESE TO: terraform/environments/dev/terraform.tfvars
 ============================================
-subscription_id      = "34c41824-bb7a-4316-af37-2597f35b730e"
-tenant_id            = "67e6de35-58f8-4419-b1c4-1e5d7c49e04b"
+subscription_id      = "$SUBSCRIPTION_ID"
+tenant_id            = "$TENANT_ID"
 github_app_client_id = "$APP_ID"
 github_sp_object_id  = "$SP_OBJECT_ID"
 deployer_object_id   = "$DEPLOYER_OBJECT_ID"
 ============================================
 
-COPY THESE TO: GitHub Repo Ã¢â€ â€™ Settings Ã¢â€ â€™ Secrets Ã¢â€ â€™ Actions
+COPY THESE TO: GitHub Repo ➔ Settings ➔ Secrets ➔ Actions
 ============================================
 AZURE_CLIENT_ID        = $APP_ID
-AZURE_TENANT_ID        = 67e6de35-58f8-4419-b1c4-1e5d7c49e04b
-AZURE_SUBSCRIPTION_ID  = 34c41824-bb7a-4316-af37-2597f35b730e
+AZURE_TENANT_ID        = $TENANT_ID
+AZURE_SUBSCRIPTION_ID  = $SUBSCRIPTION_ID
 ============================================
 EOF
 
@@ -268,10 +272,10 @@ echo -e "   - ${YELLOW}db_password${NC} (create a strong password)"
 echo -e "   - ${YELLOW}smtp_user${NC}, ${YELLOW}smtp_pass${NC}"
 echo -e "   - ${YELLOW}snyk_token${NC}, ${YELLOW}sonar_token${NC}"
 echo ""
-echo -e "3. Add these GitHub Secrets (repo Ã¢â€ â€™ Settings Ã¢â€ â€™ Secrets):"
+echo -e "3. Add these GitHub Secrets (repo ➔ Settings ➔ Secrets ➔ Actions):"
 echo -e "   ${GREEN}AZURE_CLIENT_ID${NC}        = $APP_ID"
-echo -e "   ${GREEN}AZURE_TENANT_ID${NC}        = 67e6de35-58f8-4419-b1c4-1e5d7c49e04b"
-echo -e "   ${GREEN}AZURE_SUBSCRIPTION_ID${NC}  = 34c41824-bb7a-4316-af37-2597f35b730e"
+echo -e "   ${GREEN}AZURE_TENANT_ID${NC}        = $TENANT_ID"
+echo -e "   ${GREEN}AZURE_SUBSCRIPTION_ID${NC}  = $SUBSCRIPTION_ID"
 echo ""
 echo -e "4. Push code to GitHub"
 echo ""

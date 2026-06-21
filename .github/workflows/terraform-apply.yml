@@ -37,8 +37,8 @@ env:
   ARM_USE_OIDC: "true"
   
   # Non-sensitive TF variables (not secrets)
-  TF_VAR_subscription_id: "34c41824-bb7a-4316-af37-2597f35b730e"
-  TF_VAR_tenant_id: "67e6de35-58f8-4419-b1c4-1e5d7c49e04b"
+  TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
   TF_VAR_smtp_host: "smtp.gmail.com"
   TF_VAR_smtp_port: "587"
   TF_VAR_admin_email: "admin@clahaanacademy.online"
