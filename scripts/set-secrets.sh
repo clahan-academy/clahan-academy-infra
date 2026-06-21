@@ -33,7 +33,7 @@ update_secret "smtp-pass" "zmso iaml jdkh wpxn"
 update_secret "smtp-from" "aiexamplatform123@gmail.com"
 update_secret "sendgrid-api-key" "SG.placeholder_sendgrid_key"
 update_secret "sendgrid-from" "noreply@clahanacademy.com"
-update_secret "sonar-token" "sonar_token_placeholder"
+update_secret "sonar-token" "5c7418c03235a4fa41706224d3c075c4e9c425a7"
 update_secret "snyk-token" "snyk_token_placeholder"
 
 echo "All secrets successfully updated in Key Vault!"

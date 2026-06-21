@@ -23,7 +23,7 @@ $secrets = [ordered]@{
     "smtp-from"        = "aiexamplatform123@gmail.com"
     "sendgrid-api-key" = "SG.placeholder_sendgrid_key"
     "sendgrid-from"    = "noreply@clahanacademy.com"
-    "sonar-token"      = "sonar_token_placeholder"
+    "sonar-token"      = "5c7418c03235a4fa41706224d3c075c4e9c425a7"
     "snyk-token"       = "snyk_token_placeholder"
 }
 
