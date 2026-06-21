@@ -188,9 +188,18 @@ create_federated_credential() {
   fi
 }
 
-create_federated_credential "github-main" "repo:M-VIGNESH3/clahan-academy:ref:refs/heads/main"
-create_federated_credential "github-pr" "repo:M-VIGNESH3/clahan-academy:pull_request"
-create_federated_credential "github-feature" "repo:M-VIGNESH3/clahan-academy:ref:refs/heads/feature/*"
+create_federated_credential "github-app-main" "repo:clahan-academy/clahan-academy-app:ref:refs/heads/main"
+create_federated_credential "github-app-pr" "repo:clahan-academy/clahan-academy-app:pull_request"
+create_federated_credential "github-app-feature" "repo:clahan-academy/clahan-academy-app:ref:refs/heads/feature/*"
+
+create_federated_credential "github-infra-main" "repo:clahan-academy/clahan-academy-infra:ref:refs/heads/main"
+create_federated_credential "github-infra-pr" "repo:clahan-academy/clahan-academy-infra:pull_request"
+create_federated_credential "github-infra-feature" "repo:clahan-academy/clahan-academy-infra:ref:refs/heads/feature/*"
+
+create_federated_credential "github-helm-main" "repo:clahan-academy/clahan-academy-helm:ref:refs/heads/main"
+create_federated_credential "github-helm-pr" "repo:clahan-academy/clahan-academy-helm:pull_request"
+create_federated_credential "github-helm-feature" "repo:clahan-academy/clahan-academy-helm:ref:refs/heads/feature/*"
+
 
 # SECTION 5 Ã¢â‚¬â€ Get deployer object ID
 print_banner "5" "Get deployer object ID"

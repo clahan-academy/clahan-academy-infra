@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # terraform/.gitignore
 # Terraform state - NEVER commit
 *.tfstate
@@ -32,4 +33,16 @@ Thumbs.db
 
 # Graphify
 graphify-out/
-.graphify/
+.graphify/
+=======
+﻿*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfplan
+environments/dev.tfvars
+environments/prod.tfvars
+.bootstrap-output.txt
+.vscode/
+.DS_Store
+>>>>>>> 94e03f71f4a8fd403b41c78a012dbbe4bceee1ae
