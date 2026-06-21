@@ -53,13 +53,13 @@ resource "azurerm_role_assignment" "github_secrets_user" {
   }
 }
 
-# Wait 90 seconds for RBAC to propagate before writing secrets
+# Wait 240 seconds for RBAC to propagate before writing secrets
 resource "time_sleep" "wait_for_rbac" {
   depends_on = [
     azurerm_role_assignment.deployer_secrets_officer,
     azurerm_role_assignment.github_secrets_user
   ]
-  create_duration = "90s"
+  create_duration = "240s"
 }
 
 # Auto-generate JWT secrets

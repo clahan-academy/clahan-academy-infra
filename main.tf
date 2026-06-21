@@ -136,7 +136,7 @@ module "redis" {
 
   resource_group_name = module.networking.resource_group_name
   resource_group_id   = module.networking.resource_group_id
-  location            = var.location
+  location            = "eastus"
   redis_capacity      = var.redis_capacity
   key_vault_id        = module.keyvault.key_vault_id
   tags                = local.tags

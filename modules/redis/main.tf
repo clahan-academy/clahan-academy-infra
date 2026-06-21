@@ -29,7 +29,7 @@ resource "random_string" "redis_suffix" {
 
 # Provision Redis Enterprise cluster
 resource "azapi_resource" "redis" {
-  type                      = "Microsoft.Cache/redisEnterprise@2024-09-01"
+  type                      = "Microsoft.Cache/redisEnterprise@2024-10-01"
   schema_validation_enabled = false
   name                      = "redis-clahan-${random_string.redis_suffix.result}"
   parent_id                 = var.resource_group_id
@@ -49,7 +49,7 @@ resource "azapi_resource" "redis" {
 
 # Provision default database under the cluster
 resource "azapi_resource" "redis_db" {
-  type                      = "Microsoft.Cache/redisEnterprise/databases@2024-09-01"
+  type                      = "Microsoft.Cache/redisEnterprise/databases@2024-10-01"
   schema_validation_enabled = false
   name                      = "default"
   parent_id                 = azapi_resource.redis.id
@@ -66,7 +66,7 @@ resource "azapi_resource" "redis_db" {
 
 # Fetch access keys for connection string
 data "azapi_resource_action" "redis_keys" {
-  type        = "Microsoft.Cache/redisEnterprise/databases@2024-09-01"
+  type        = "Microsoft.Cache/redisEnterprise/databases@2024-10-01"
   resource_id = azapi_resource.redis_db.id
   action      = "listKeys"
 }
