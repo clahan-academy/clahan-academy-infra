@@ -19,7 +19,7 @@ resource "random_password" "postgres_admin" {
 }
 
 resource "azurerm_postgresql_flexible_server" "main" {
-  name                         = "psql-clahan-65bf2554"
+  name                         = var.environment == "prod" ? "psql-clahan-65bf2554prod" : "psql-clahan-65bf2554"
   resource_group_name          = var.resource_group_name
   location                     = var.location
   administrator_login          = "clahanadmin"

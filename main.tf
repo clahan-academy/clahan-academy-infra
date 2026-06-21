@@ -61,6 +61,7 @@ module "postgres" {
   storage_mb                   = var.postgres_storage_mb
   backup_retention_days        = var.postgres_backup_days
   geo_redundant_backup_enabled = var.postgres_geo_redundant
+  environment                  = var.environment
   tags                         = local.tags
 }
 
