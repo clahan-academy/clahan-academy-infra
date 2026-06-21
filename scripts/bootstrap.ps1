@@ -85,10 +85,10 @@ if (az storage account show --name $TfStorageAccount --resource-group $TfResourc
 }
 
 # Create Container
-if (az storage container show --name $TfContainer --account-name $TfStorageAccount 2>$null) {
+if (az storage container show --name $TfContainer --account-name $TfStorageAccount --auth-mode login 2>$null) {
     Write-Host "[WARN] Container $TfContainer already exists, skipping" -ForegroundColor Yellow
 } else {
-    az storage container create --name $TfContainer --account-name $TfStorageAccount --public-access off | Out-Null
+    az storage container create --name $TfContainer --account-name $TfStorageAccount --auth-mode login | Out-Null
     Write-Host "[OK] Blob container created: $TfContainer" -ForegroundColor Green
 }
 

@@ -137,7 +137,7 @@ else
   az storage container create \
     --name "$TF_CONTAINER" \
     --account-name "$TF_STORAGE_ACCOUNT" \
-    --public-access off
+    --auth-mode login
   success "Blob container created: $TF_CONTAINER"
 fi
 
