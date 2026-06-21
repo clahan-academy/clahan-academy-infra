@@ -8,7 +8,7 @@ locals {
 
 # Storage account for AI models, profile photos, and CSV imports
 resource "azurerm_storage_account" "main" {
-  name                            = "stclahan65bf2554"
+  name                            = var.environment == "prod" ? "stclahan65bf2554prod" : "stclahan65bf2554"
   resource_group_name             = var.resource_group_name
   location                        = var.location
   account_tier                    = "Standard"

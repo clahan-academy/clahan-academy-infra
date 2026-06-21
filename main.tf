@@ -37,6 +37,7 @@ module "acr" {
   resource_group_name        = module.networking.resource_group_name
   location                   = var.location
   subnet_privateendpoints_id = module.networking.subnet_privateendpoints_id
+  environment                = var.environment
   tags                       = local.tags
 }
 
@@ -47,6 +48,7 @@ module "storage" {
   location                   = var.location
   subnet_privateendpoints_id = module.networking.subnet_privateendpoints_id
   deployer_object_id         = var.deployer_object_id
+  environment                = var.environment
   tags                       = local.tags
 }
 
