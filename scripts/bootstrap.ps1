@@ -18,9 +18,9 @@ function Check-Tool {
     )
     if (Get-Command $ToolName -ErrorAction SilentlyContinue) {
         $Version = & $ToolName --version 2>$null | Select-Object -First 1
-        Write-Host "✅ $ToolName found: $Version" -ForegroundColor Green
+        Write-Host "[OK] $ToolName found: $Version" -ForegroundColor Green
     } else {
-        Write-Host "❌ $ToolName not found. Please install from: $InstallUrl" -ForegroundColor Red
+        Write-Host "[ERROR] $ToolName not found. Please install from: $InstallUrl" -ForegroundColor Red
         Exit 1
     }
 }
@@ -36,7 +36,7 @@ Write-Host "   SECTION 2: Azure Login & Subscription"
 Write-Host "============================================" -ForegroundColor Cyan
 
 if (-not (az account show --query name -o tsv 2>$null)) {
-    Write-Host "🔑 Not logged in. Opening browser..." -ForegroundColor Cyan
+    Write-Host "[INFO] Not logged in. Opening browser..." -ForegroundColor Cyan
     az login | Out-Null
 }
 
@@ -44,12 +44,12 @@ $SubscriptionId = (az account show --query id -o tsv)
 $TenantId = (az account show --query tenantId -o tsv)
 $SubName = (az account show --query name -o tsv)
 
-Write-Host "📌 Using subscription: $SubName ($SubscriptionId)" -ForegroundColor Green
-Write-Host "📌 Using Tenant: $TenantId" -ForegroundColor Green
+Write-Host "[INFO] Using subscription: $SubName ($SubscriptionId)" -ForegroundColor Green
+Write-Host "[INFO] Using Tenant: $TenantId" -ForegroundColor Green
 
 $Confirm = Read-Host "Is this subscription correct? (y/n)"
 if ($Confirm -ne "y" -and $Confirm -ne "Y") {
-    Write-Host "❌ Aborted. Please log into the correct Azure subscription and run again." -ForegroundColor Red
+    Write-Host "[ERROR] Aborted. Please log into the correct Azure subscription and run again." -ForegroundColor Red
     Exit 1
 }
 
@@ -60,26 +60,26 @@ Write-Host "============================================" -ForegroundColor Cyan
 
 # Create Resource Group
 if (az group show --name $TfResourceGroup 2>$null) {
-    Write-Host "⚠️ Resource group $TfResourceGroup already exists, skipping" -ForegroundColor Yellow
+    Write-Host "[WARN] Resource group $TfResourceGroup already exists, skipping" -ForegroundColor Yellow
 } else {
     az group create --name $TfResourceGroup --location $Location --tags project=clahan-academy purpose=terraform-state | Out-Null
-    Write-Host "✅ Resource group created: $TfResourceGroup" -ForegroundColor Green
+    Write-Host "[OK] Resource group created: $TfResourceGroup" -ForegroundColor Green
 }
 
 # Create Storage Account
 if (az storage account show --name $TfStorageAccount --resource-group $TfResourceGroup 2>$null) {
-    Write-Host "⚠️ Storage account $TfStorageAccount already exists, skipping" -ForegroundColor Yellow
+    Write-Host "[WARN] Storage account $TfStorageAccount already exists, skipping" -ForegroundColor Yellow
 } else {
     az storage account create --name $TfStorageAccount --resource-group $TfResourceGroup --location $Location --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --allow-blob-public-access false --tags project=clahan-academy purpose=terraform-state | Out-Null
-    Write-Host "✅ Storage account created: $TfStorageAccount" -ForegroundColor Green
+    Write-Host "[OK] Storage account created: $TfStorageAccount" -ForegroundColor Green
 }
 
 # Create Container
 if (az storage container show --name $TfContainer --account-name $TfStorageAccount 2>$null) {
-    Write-Host "⚠️ Container $TfContainer already exists, skipping" -ForegroundColor Yellow
+    Write-Host "[WARN] Container $TfContainer already exists, skipping" -ForegroundColor Yellow
 } else {
     az storage container create --name $TfContainer --account-name $TfStorageAccount --public-access off | Out-Null
-    Write-Host "✅ Blob container created: $TfContainer" -ForegroundColor Green
+    Write-Host "[OK] Blob container created: $TfContainer" -ForegroundColor Green
 }
 
 Write-Host ""
@@ -90,26 +90,26 @@ Write-Host "============================================" -ForegroundColor Cyan
 $AppId = (az ad app list --display-name $SpName --query "[0].appId" -o tsv 2>$null)
 if (-not $AppId -or $AppId -eq "null" -or $AppId -eq "") {
     $AppId = (az ad app create --display-name $SpName --query appId -o tsv)
-    Write-Host "✅ App registration created: $SpName ($AppId)" -ForegroundColor Green
+    Write-Host "[OK] App registration created: $SpName ($AppId)" -ForegroundColor Green
 } else {
-    Write-Host "⚠️ App registration $SpName already exists ($AppId)" -ForegroundColor Yellow
+    Write-Host "[WARN] App registration $SpName already exists ($AppId)" -ForegroundColor Yellow
 }
 
 $SpObjectId = (az ad sp show --id $AppId --query id -o tsv 2>$null)
 if (-not $SpObjectId -or $SpObjectId -eq "null" -or $SpObjectId -eq "") {
     az ad sp create --id $AppId | Out-Null
     $SpObjectId = (az ad sp show --id $AppId --query id -o tsv)
-    Write-Host "✅ Service principal created" -ForegroundColor Green
+    Write-Host "[OK] Service principal created" -ForegroundColor Green
 } else {
-    Write-Host "⚠️ Service principal already exists" -ForegroundColor Yellow
+    Write-Host "[WARN] Service principal already exists" -ForegroundColor Yellow
 }
 
 $RoleExists = (az role assignment list --assignee $AppId --role "Contributor" --scope "/subscriptions/$SubscriptionId" --query "[0].id" -o tsv 2>$null)
 if (-not $RoleExists -or $RoleExists -eq "null" -or $RoleExists -eq "") {
     az role assignment create --role "Contributor" --assignee $AppId --scope "/subscriptions/$SubscriptionId" | Out-Null
-    Write-Host "✅ Contributor role assigned" -ForegroundColor Green
+    Write-Host "[OK] Contributor role assigned" -ForegroundColor Green
 } else {
-    Write-Host "⚠️ Contributor role already assigned" -ForegroundColor Yellow
+    Write-Host "[WARN] Contributor role already assigned" -ForegroundColor Yellow
 }
 
 function Create-FederatedCredential {
@@ -118,7 +118,7 @@ function Create-FederatedCredential {
         [string]$Subject
     )
     if (az ad app federated-credential show --id $AppId --federated-credential-id $CredName 2>$null) {
-        Write-Host "⚠️ Federated credential $CredName already exists, skipping" -ForegroundColor Yellow
+        Write-Host "[WARN] Federated credential $CredName already exists, skipping" -ForegroundColor Yellow
     } else {
         $ParamsObj = @{
             name = $CredName
@@ -127,11 +127,10 @@ function Create-FederatedCredential {
             description = "Federated credential for $CredName"
             audiences = @("api://AzureADTokenExchange")
         }
-        # Render JSON parameters correctly escaped for PowerShell
         $ParamsJson = $ParamsObj | ConvertTo-Json -Compress
         $ParamsEscaped = $ParamsJson.Replace('"', '\"')
         az ad app federated-credential create --id $AppId --parameters $ParamsEscaped | Out-Null
-        Write-Host "✅ Federated credential $CredName created" -ForegroundColor Green
+        Write-Host "[OK] Federated credential $CredName created" -ForegroundColor Green
     }
 }
 
@@ -153,55 +152,56 @@ Write-Host "   SECTION 5: Deployer Identity"
 Write-Host "============================================" -ForegroundColor Cyan
 
 $DeployerObjectId = (az ad signed-in-user show --query id -o tsv)
-Write-Host "👤 Deployer Object ID: $DeployerObjectId" -ForegroundColor Green
+Write-Host "[INFO] Deployer Object ID: $DeployerObjectId" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "   SECTION 6: Save Config Outputs"
 Write-Host "============================================" -ForegroundColor Cyan
 
-$OutputText = @"
-============================================
-BOOTSTRAP OUTPUT — DO NOT COMMIT THIS FILE
-============================================
-Generated: $((Get-Date).ToString())
+$Lines = @(
+    "============================================",
+    "BOOTSTRAP OUTPUT - DO NOT COMMIT THIS FILE",
+    "============================================",
+    "Generated: $((Get-Date).ToString())",
+    "",
+    "--- Terraform State Backend ---",
+    "Resource Group:    rg-clahan-tfstate",
+    "Storage Account:   stclahantfstate",
+    "Container:         tfstate",
+    "State Key:         dev/terraform.tfstate",
+    "",
+    "--- GitHub Actions Service Principal ---",
+    "Display Name:      sp-github-clahan-ci",
+    "Client ID:         $AppId",
+    "SP Object ID:      $SpObjectId",
+    "Tenant ID:         $TenantId",
+    "Subscription ID:   $SubscriptionId",
+    "",
+    "--- Deployer ---",
+    "Object ID:         $DeployerObjectId",
+    "",
+    "============================================",
+    "COPY THESE TO: terraform/environments/dev/terraform.tfvars",
+    "============================================",
+    "subscription_id      = `"$SubscriptionId`"",
+    "tenant_id            = `"$TenantId`"",
+    "github_app_client_id = `"$AppId`"",
+    "github_sp_object_id  = `"$SpObjectId`"",
+    "deployer_object_id   = `"$DeployerObjectId`"",
+    "============================================",
+    "",
+    "COPY THESE TO: GitHub Repo -> Settings -> Secrets -> Actions",
+    "============================================",
+    "AZURE_CLIENT_ID        = $AppId",
+    "AZURE_TENANT_ID        = $TenantId",
+    "AZURE_SUBSCRIPTION_ID  = $SubscriptionId",
+    "============================================"
+)
 
---- Terraform State Backend ---
-Resource Group:    rg-clahan-tfstate
-Storage Account:   stclahantfstate
-Container:         tfstate
-State Key:         dev/terraform.tfstate
-
---- GitHub Actions Service Principal ---
-Display Name:      sp-github-clahan-ci
-Client ID:         $AppId
-SP Object ID:      $SpObjectId
-Tenant ID:         $TenantId
-Subscription ID:   $SubscriptionId
-
---- Deployer ---
-Object ID:         $DeployerObjectId
-
-============================================
-COPY THESE TO: terraform/environments/dev/terraform.tfvars
-============================================
-subscription_id      = "$SubscriptionId"
-tenant_id            = "$TenantId"
-github_app_client_id = "$AppId"
-github_sp_object_id  = "$SpObjectId"
-deployer_object_id   = "$DeployerObjectId"
-============================================
-
-COPY THESE TO: GitHub Repo ➔ Settings ➔ Secrets ➔ Actions
-============================================
-AZURE_CLIENT_ID        = $AppId
-AZURE_TENANT_ID        = $TenantId
-AZURE_SUBSCRIPTION_ID  = $SubscriptionId
-============================================
-"@
-
-$OutputText | Out-File -FilePath .bootstrap-output.txt -Encoding utf8
-Write-Host "✅ Output saved to .bootstrap-output.txt" -ForegroundColor Green
+$OutputText = $Lines -join "`r`n"
+$OutputText | Out-File -FilePath .bootstrap-output.txt -Encoding ascii
+Write-Host "[OK] Output saved to .bootstrap-output.txt" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=============================================" -ForegroundColor Cyan
