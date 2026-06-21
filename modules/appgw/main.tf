@@ -217,4 +217,8 @@ resource "azurerm_application_gateway" "main" {
   }
 
   firewall_policy_id = azurerm_web_application_firewall_policy.waf.id
+
+  depends_on = [
+    azurerm_role_assignment.appgw_kv_secrets_user
+  ]
 }
