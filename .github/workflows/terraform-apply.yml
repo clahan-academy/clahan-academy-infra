@@ -107,7 +107,7 @@ jobs:
       
       - name: Terraform Init
         working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: terraform init -reconfigure
+        run: terraform init -reconfigure -backend-config="key=terraform-${{ needs.setup.outputs.environment }}.tfstate"
       
       - name: Terraform Format Check
         working-directory: ${{ needs.setup.outputs.tf_dir }}
@@ -162,7 +162,7 @@ jobs:
       
       - name: Terraform Init
         working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: terraform init -reconfigure
+        run: terraform init -reconfigure -backend-config="key=terraform-${{ needs.setup.outputs.environment }}.tfstate"
       
       - name: Terraform Plan
         id: plan
@@ -240,7 +240,7 @@ jobs:
       
       - name: Terraform Init
         working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: terraform init -reconfigure
+        run: terraform init -reconfigure -backend-config="key=terraform-${{ needs.setup.outputs.environment }}.tfstate"
       
       - name: Download plan artifact
         uses: actions/download-artifact@v4
