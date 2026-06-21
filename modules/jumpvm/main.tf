@@ -93,6 +93,12 @@ resource "azurerm_role_assignment" "vm_aks_admin" {
   scope                = var.aks_cluster_id
 }
 
+resource "azurerm_role_assignment" "vm_aks_user" {
+  role_definition_name = "Azure Kubernetes Service Cluster User Role"
+  principal_id         = azurerm_linux_virtual_machine.main.identity[0].principal_id
+  scope                = var.aks_cluster_id
+}
+
 resource "azurerm_role_assignment" "vm_keyvault_reader" {
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_linux_virtual_machine.main.identity[0].principal_id
