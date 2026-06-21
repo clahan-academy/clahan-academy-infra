@@ -18,6 +18,10 @@ resource "random_string" "redis_suffix" {
   special = false
   upper   = false
   numeric = true
+  keepers = {
+    # Increment this value to force-rotate the Redis name if Azure has deletion lag/locks
+    rotation = "2"
+  }
 }
 
 # Provision Redis Enterprise cluster (Azure Managed Redis) using native azurerm provider
