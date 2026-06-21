@@ -43,13 +43,14 @@ resource "azurerm_linux_function_app" "main" {
     "WEBSITE_RUN_FROM_PACKAGE"              = "1"
     "APPINSIGHTS_INSTRUMENTATIONKEY"        = var.app_insights_instrumentation_key
     "APPLICATIONINSIGHTS_CONNECTION_STRING" = var.app_insights_connection_string
-    "DATABASE_URL"                          = "@Microsoft.KeyVault(VaultName=kv-clahan-academy;SecretName=db-connection-string)"
-    "SMTP_HOST"                             = "@Microsoft.KeyVault(VaultName=kv-clahan-academy;SecretName=smtp-host)"
-    "SMTP_PORT"                             = "@Microsoft.KeyVault(VaultName=kv-clahan-academy;SecretName=smtp-port)"
-    "SMTP_USER"                             = "@Microsoft.KeyVault(VaultName=kv-clahan-academy;SecretName=smtp-user)"
-    "SMTP_PASS"                             = "@Microsoft.KeyVault(VaultName=kv-clahan-academy;SecretName=smtp-pass)"
+    "DATABASE_URL"                          = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=db-connection-string)"
+    "SMTP_HOST"                             = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-host)"
+    "SMTP_PORT"                             = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-port)"
+    "SMTP_USER"                             = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-user)"
+    "SMTP_PASS"                             = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-pass)"
     "ADMIN_EMAIL"                           = var.admin_email
     "AKS_RESOURCE_GROUP"                    = var.resource_group_name
+
     "AKS_CLUSTER_NAME"                      = "aks-clahan-academy"
     "REDIS_HOSTNAME"                        = var.redis_hostname
     "POSTGRES_FQDN"                         = var.postgres_fqdn
