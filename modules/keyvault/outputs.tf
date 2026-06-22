@@ -3,31 +3,16 @@
 output "key_vault_id" {
   description = "Resource ID of the Key Vault"
   value       = azurerm_key_vault.main.id
-  depends_on  = [time_sleep.wait_for_rbac]
 }
 
 output "key_vault_uri" {
   description = "URI of the Key Vault"
   value       = azurerm_key_vault.main.vault_uri
-  depends_on  = [time_sleep.wait_for_rbac]
 }
 
 output "key_vault_name" {
   description = "Name of the Key Vault"
   value       = azurerm_key_vault.main.name
-  depends_on  = [time_sleep.wait_for_rbac]
-}
-
-output "jwt_access_secret" {
-  description = "Auto-generated JWT access secret"
-  value       = random_password.jwt_access.result
-  sensitive   = true
-}
-
-output "jwt_refresh_secret" {
-  description = "Auto-generated JWT refresh secret"
-  value       = random_password.jwt_refresh.result
-  sensitive   = true
 }
 
 output "secret_names" {
