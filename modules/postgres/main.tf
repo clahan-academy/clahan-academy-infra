@@ -11,7 +11,7 @@ locals {
 resource "random_password" "postgres_admin" {
   length           = 24
   special          = true
-  override_special = "!#$%&*-_=+?"
+  override_special = "-_"
   min_lower        = 4
   min_upper        = 4
   min_numeric      = 4
@@ -41,7 +41,6 @@ resource "azurerm_postgresql_flexible_server" "main" {
 
   lifecycle {
     ignore_changes = [
-      administrator_password,
       zone
     ]
   }
