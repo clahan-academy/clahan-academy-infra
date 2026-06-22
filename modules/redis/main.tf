@@ -26,10 +26,10 @@ resource "random_string" "redis_suffix" {
 
 # Provision standard Azure Cache for Redis
 resource "azurerm_redis_cache" "main" {
-  count               = var.environment == "prod" ? 1 : 0
-  name                = "redis-clahan-prod-${random_string.redis_suffix[0].result}"
-  location            = var.location
-  resource_group_name = var.resource_group_name
+  count                = var.environment == "prod" ? 1 : 0
+  name                 = "redis-clahan-prod-${random_string.redis_suffix[0].result}"
+  location             = var.location
+  resource_group_name  = var.resource_group_name
   capacity             = var.redis_capacity
   family               = "C"
   sku_name             = "Standard"
