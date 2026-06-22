@@ -359,24 +359,28 @@ resource "azurerm_subnet_network_security_group_association" "appgw" {
 resource "azurerm_subnet_network_security_group_association" "mgmt" {
   subnet_id                 = azurerm_subnet.mgmt.id
   network_security_group_id = azurerm_network_security_group.mgmt.id
+  depends_on                = [azurerm_subnet_network_security_group_association.appgw]
 }
 
 # Associate NSG with the AKS subnet
 resource "azurerm_subnet_network_security_group_association" "aks" {
   subnet_id                 = azurerm_subnet.aks.id
   network_security_group_id = azurerm_network_security_group.aks.id
+  depends_on                = [azurerm_subnet_network_security_group_association.mgmt]
 }
 
 # Associate NSG with the Private Endpoints subnet
 resource "azurerm_subnet_network_security_group_association" "privateendpoints" {
   subnet_id                 = azurerm_subnet.privateendpoints.id
   network_security_group_id = azurerm_network_security_group.privateendpoints.id
+  depends_on                = [azurerm_subnet_network_security_group_association.aks]
 }
 
 # Associate NSG with the Azure Functions subnet
 resource "azurerm_subnet_network_security_group_association" "functions" {
   subnet_id                 = azurerm_subnet.functions.id
   network_security_group_id = azurerm_network_security_group.functions.id
+  depends_on                = [azurerm_subnet_network_security_group_association.privateendpoints]
 }
 
 # Public IP address assigned to Azure Bastion host

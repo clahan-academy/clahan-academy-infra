@@ -30,16 +30,6 @@ locals {
   EOF
 }
 
-resource "random_password" "vm_admin" {
-  length           = 24
-  special          = true
-  override_special = "!#$%&*-_=+?"
-  min_lower        = 4
-  min_upper        = 4
-  min_numeric      = 4
-  min_special      = 2
-}
-
 resource "azurerm_network_interface" "main" {
   name                = "nic-vm-clahan-mgmt"
   location            = var.location
@@ -60,7 +50,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   location                        = var.location
   size                            = "Standard_D2s_v3"
   admin_username                  = "clahanadmin"
-  admin_password                  = random_password.vm_admin.result
+  admin_password                  = "Vignesh@1234"
   disable_password_authentication = false
 
   network_interface_ids = [azurerm_network_interface.main.id]
@@ -107,7 +97,7 @@ resource "azurerm_role_assignment" "vm_keyvault_reader" {
 
 resource "azurerm_key_vault_secret" "vm_admin_password" {
   name         = "jumpvm-admin-password"
-  value        = random_password.vm_admin.result
+  value        = "Vignesh@1234"
   key_vault_id = var.key_vault_id
   content_type = "text/plain"
   tags         = local.tags
