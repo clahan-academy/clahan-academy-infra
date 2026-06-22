@@ -46,5 +46,5 @@ postgres_geo_redundant = true
 redis_capacity = 2
 
 # All modules enabled in production
-enable_functions = true
+enable_functions = false
 enable_jumpvm    = true
