@@ -45,29 +45,6 @@ resource "azurerm_private_endpoint" "acr" {
   tags = local.tags
 }
 
-# 3. Redis Cache Private Endpoint (Production Only)
-resource "azurerm_private_endpoint" "redis" {
-  count               = var.environment == "prod" ? 1 : 0
-  name                = "pe-redis"
-  location            = var.location
-  resource_group_name = module.networking.resource_group_name
-  subnet_id           = module.networking.subnet_privateendpoints_id
-
-  private_service_connection {
-    name                           = "psc-redis"
-    private_connection_resource_id = module.redis.redis_id
-    subresource_names              = ["redisCache"]
-    is_manual_connection           = false
-  }
-
-  private_dns_zone_group {
-    name                 = "dns-group-redis"
-    private_dns_zone_ids = [module.networking.private_dns_zone_ids["redis"]]
-  }
-
-  tags = local.tags
-}
-
 # 4. Storage Account Private Endpoint (Blob)
 resource "azurerm_private_endpoint" "storage_blob" {
   name                = "pe-storage-blob"

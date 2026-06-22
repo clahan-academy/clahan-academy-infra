@@ -30,9 +30,9 @@ resource "azurerm_redis_cache" "main" {
   name                 = "redis-clahan-prod-${random_string.redis_suffix[0].result}"
   location             = var.location
   resource_group_name  = var.resource_group_name
-  capacity             = 1
-  family               = "P"
-  sku_name             = "Premium"
+  capacity             = var.redis_capacity
+  family               = "C"
+  sku_name             = "Standard"
   non_ssl_port_enabled = false
   minimum_tls_version  = "1.2"
 
