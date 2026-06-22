@@ -31,6 +31,8 @@ resource "azurerm_postgresql_flexible_server" "main" {
   geo_redundant_backup_enabled = var.geo_redundant_backup_enabled
 
   # VNet integration - private access only
+  delegated_subnet_id = var.subnet_id
+  private_dns_zone_id = var.private_dns_zone_id
 
   maintenance_window {
     day_of_week  = 0

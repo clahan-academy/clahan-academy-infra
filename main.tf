@@ -62,6 +62,8 @@ module "postgres" {
   backup_retention_days        = var.postgres_backup_days
   geo_redundant_backup_enabled = var.postgres_geo_redundant
   environment                  = var.environment
+  subnet_id                    = module.networking.subnet_postgres_id
+  private_dns_zone_id          = module.networking.private_dns_zone_ids["postgres"]
   tags                         = local.tags
 }
 
@@ -143,7 +145,7 @@ module "redis" {
 
   resource_group_name = module.networking.resource_group_name
   resource_group_id   = module.networking.resource_group_id
-  location            = "eastus"
+  location            = var.location
   redis_capacity      = var.redis_capacity
   key_vault_id        = module.keyvault.key_vault_id
   environment         = var.environment

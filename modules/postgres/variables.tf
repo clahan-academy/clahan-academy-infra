@@ -33,3 +33,13 @@ variable "environment" {
   description = "Deployment environment"
   type        = string
 }
+
+variable "subnet_id" {
+  description = "Subnet ID for PostgreSQL Flexible Server"
+  type        = string
+}
+
+variable "private_dns_zone_id" {
+  description = "Private DNS Zone ID for PostgreSQL Flexible Server"
+  type        = string
+}
