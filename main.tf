@@ -154,6 +154,7 @@ module "functions" {
   count  = var.enable_functions ? 1 : 0
   source = "./modules/functions"
 
+  subscription_id                  = var.subscription_id
   resource_group_name              = module.networking.resource_group_name
   location                         = var.location
   storage_account_name             = module.storage.storage_account_name

@@ -45,8 +45,8 @@ postgres_geo_redundant = false
 # Redis DEV
 redis_capacity = 1
 
-# Functions DEV (Bypassed due to trial subscription core limits)
-enable_functions = false
+# Functions DEV
+enable_functions = true
 
 # Jump VM + Bastion DEV (disabled to save cost, use az aks command invoke)
 enable_jumpvm = false
