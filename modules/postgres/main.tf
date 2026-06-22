@@ -29,8 +29,8 @@ resource "azurerm_postgresql_flexible_server" "main" {
   storage_mb                   = var.storage_mb
   backup_retention_days        = var.backup_retention_days
   geo_redundant_backup_enabled = var.geo_redundant_backup_enabled
-
-  # VNet integration - private access only
+  delegated_subnet_id          = var.subnet_id
+  private_dns_zone_id          = var.private_dns_zone_id
 
   maintenance_window {
     day_of_week  = 0
@@ -60,11 +60,4 @@ resource "azurerm_postgresql_flexible_server_database" "judge0" {
   server_id = azurerm_postgresql_flexible_server.main.id
   charset   = "UTF8"
   collation = "en_US.utf8"
-}
-
-resource "azurerm_postgresql_flexible_server_firewall_rule" "azure_services" {
-  name             = "allow-azure-services"
-  server_id        = azurerm_postgresql_flexible_server.main.id
-  start_ip_address = "0.0.0.0"
-  end_ip_address   = "0.0.0.0"
 }
