@@ -113,7 +113,7 @@ resource "azurerm_application_gateway" "main" {
 
   backend_address_pool {
     name         = local.backend_address_pool_name
-    ip_addresses = ["10.0.4.100"] # Default internal IP for the ingress/gateway load balancer
+    ip_addresses = ["10.0.4.250"] # Default internal IP for the ingress/gateway load balancer
   }
 
   backend_http_settings {

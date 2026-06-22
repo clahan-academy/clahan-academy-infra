@@ -104,3 +104,18 @@ output "estimated_monthly_cost" {
     note         = "Development minimal setup"
   }
 }
+
+output "postgres_admin_password" {
+  value     = module.postgres.admin_password
+  sensitive = true
+}
+
+output "postgres_app_connection_string" {
+  value     = module.postgres.app_connection_string
+  sensitive = true
+}
+
+output "postgres_judge0_connection_string" {
+  value     = module.postgres.judge0_connection_string
+  sensitive = true
+}
