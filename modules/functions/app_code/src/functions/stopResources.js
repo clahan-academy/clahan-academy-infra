@@ -15,7 +15,7 @@ app.timer('stopResources', {
             const subscriptionId = process.env.AZURE_SUBSCRIPTION_ID;
             const resourceGroup = process.env.RESOURCE_GROUP;
             const aksName = process.env.AKS_CLUSTER_NAME;
-            const vmName = process.env.VM_NAME || 'vm-clahan-jump';
+            const vmName = process.env.VM_NAME || 'vm-clahan-mgmt';
 
             context.log(`Sub: ${subscriptionId}, RG: ${resourceGroup}, AKS: ${aksName}, VM: ${vmName}`);
 

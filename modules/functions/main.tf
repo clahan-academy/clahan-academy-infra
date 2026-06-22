@@ -62,7 +62,7 @@ resource "azurerm_linux_function_app" "main" {
     "AZURE_SUBSCRIPTION_ID" = var.subscription_id
     "RESOURCE_GROUP"        = var.resource_group_name
     "AKS_CLUSTER_NAME"      = "aks-clahan-academy"
-    "VM_NAME"               = "vm-clahan-jump"
+    "VM_NAME"               = "vm-clahan-mgmt"
 
     # Key Vault secret references for SMTP alerts
     "DATABASE_URL"          = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=db-connection-string)"
