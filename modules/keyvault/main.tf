@@ -304,6 +304,15 @@ resource "azurerm_key_vault_secret" "ai_port" {
   depends_on   = [time_sleep.wait_for_rbac]
 }
 
+resource "azurerm_key_vault_secret" "frontend_port" {
+  name         = "frontend-port"
+  value        = "5173"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
 resource "azurerm_key_vault_secret" "rate_limit_max" {
   name         = "rate-limit-max"
   value        = "100"
