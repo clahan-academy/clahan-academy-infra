@@ -91,3 +91,8 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "environment" {
+  description = "Deployment environment (dev or prod)"
+  type        = string
+}

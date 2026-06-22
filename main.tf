@@ -109,6 +109,7 @@ module "aks" {
   app_min_count              = var.app_min_count
   app_max_count              = var.app_max_count
   tags                       = local.tags
+  environment                = var.environment
 }
 
 module "identity" {
