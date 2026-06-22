@@ -85,6 +85,12 @@ resource "azurerm_kubernetes_cluster" "main" {
   role_based_access_control_enabled = true
 
   tags = local.tags
+
+  lifecycle {
+    ignore_changes = [
+      default_node_pool[0].node_count
+    ]
+  }
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "ai" {
