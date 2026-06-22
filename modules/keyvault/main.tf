@@ -239,3 +239,130 @@ resource "azurerm_key_vault_secret" "node_env" {
   tags         = local.tags
   depends_on   = [time_sleep.wait_for_rbac]
 }
+
+# Port & limit secrets expected by Helm SecretProviderClasses
+resource "azurerm_key_vault_secret" "admin_port" {
+  name         = "admin-port"
+  value        = "4002"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "auth_port" {
+  name         = "auth-port"
+  value        = "4001"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "student_port" {
+  name         = "student-port"
+  value        = "4003"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "exam_port" {
+  name         = "exam-port"
+  value        = "4004"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "proctoring_port" {
+  name         = "proctoring-port"
+  value        = "4005"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "notification_port" {
+  name         = "notification-port"
+  value        = "4006"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "ai_port" {
+  name         = "ai-port"
+  value        = "8000"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "rate_limit_max" {
+  name         = "rate-limit-max"
+  value        = "100"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "tab_switch_limit" {
+  name         = "tab-switch-limit"
+  value        = "3"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "mobile_phone_limit" {
+  name         = "mobile-phone-limit"
+  value        = "1"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "book_limit" {
+  name         = "book-limit"
+  value        = "1"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "multiple_faces_limit" {
+  name         = "multiple-faces-limit"
+  value        = "2"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "no_face_timeout_ms" {
+  name         = "no-face-timeout-ms"
+  value        = "5000"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
+
+resource "azurerm_key_vault_secret" "fullscreen_exit_limit" {
+  name         = "fullscreen-exit-limit"
+  value        = "3"
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [time_sleep.wait_for_rbac]
+}
