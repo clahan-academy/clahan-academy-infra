@@ -57,7 +57,7 @@ resource "azurerm_linux_function_app" "main" {
     "WEBSITE_TIME_ZONE"                     = "India Standard Time"
     "APPINSIGHTS_INSTRUMENTATIONKEY"        = var.app_insights_instrumentation_key
     "APPLICATIONINSIGHTS_CONNECTION_STRING" = var.app_insights_connection_string
-    
+
     # Target Resource configurations
     "AZURE_SUBSCRIPTION_ID" = var.subscription_id
     "RESOURCE_GROUP"        = var.resource_group_name
@@ -65,12 +65,12 @@ resource "azurerm_linux_function_app" "main" {
     "VM_NAME"               = "vm-clahan-mgmt"
 
     # Key Vault secret references for SMTP alerts
-    "DATABASE_URL"          = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=db-connection-string)"
-    "SMTP_HOST"             = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-host)"
-    "SMTP_PORT"             = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-port)"
-    "SMTP_USER"             = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-user)"
-    "SMTP_PASS"             = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-pass)"
-    "ADMIN_EMAIL"           = var.admin_email
+    "DATABASE_URL" = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=db-connection-string)"
+    "SMTP_HOST"    = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-host)"
+    "SMTP_PORT"    = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-port)"
+    "SMTP_USER"    = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-user)"
+    "SMTP_PASS"    = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-pass)"
+    "ADMIN_EMAIL"  = var.admin_email
   }
 
   tags = local.tags
