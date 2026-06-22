@@ -19,18 +19,18 @@ resource "random_password" "postgres_admin" {
 }
 
 resource "azurerm_postgresql_flexible_server" "main" {
-  name                         = var.environment == "prod" ? "psql-clahan-65bf2554" : "psql-clahan-65bf2554dev"
-  resource_group_name          = var.resource_group_name
-  location                     = var.location
-  administrator_login          = "clahanadmin"
-  administrator_password       = random_password.postgres_admin.result
-  sku_name                     = var.sku_name
-  version                      = "15"
-  storage_mb                   = var.storage_mb
-  backup_retention_days        = var.backup_retention_days
-  geo_redundant_backup_enabled = var.geo_redundant_backup_enabled
-  delegated_subnet_id          = var.subnet_id
-  private_dns_zone_id          = var.private_dns_zone_id
+  name                          = var.environment == "prod" ? "psql-clahan-65bf2554" : "psql-clahan-65bf2554dev"
+  resource_group_name           = var.resource_group_name
+  location                      = var.location
+  administrator_login           = "clahanadmin"
+  administrator_password        = random_password.postgres_admin.result
+  sku_name                      = var.sku_name
+  version                       = "15"
+  storage_mb                    = var.storage_mb
+  backup_retention_days         = var.backup_retention_days
+  geo_redundant_backup_enabled  = var.geo_redundant_backup_enabled
+  delegated_subnet_id           = var.subnet_id
+  private_dns_zone_id           = var.private_dns_zone_id
   public_network_access_enabled = false
 
   maintenance_window {
