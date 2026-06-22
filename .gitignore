@@ -25,3 +25,7 @@ Thumbs.db
 # Graphify
 graphify-out/
 .graphify/
+
+# Function App deployment build artifacts
+node_modules/
+modules/functions/function_app.zip
