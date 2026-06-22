@@ -77,11 +77,6 @@ module "keyvault" {
   github_sp_object_id = var.github_sp_object_id
   key_vault_name      = var.key_vault_name
   tags                = local.tags
-
-  secrets = {
-    blob_storage_account = module.storage.storage_account_name
-    blob_storage_key     = module.storage.primary_access_key
-  }
 }
 
 module "aks" {
@@ -131,25 +126,6 @@ module "jumpvm" {
   tags                = local.tags
 }
 
-# Redis secrets defined directly (using in-cluster Redis)
-resource "azurerm_key_vault_secret" "redis_connection_string" {
-  name         = "redis-connection-string"
-  value        = "redis://redis:6379"
-  key_vault_id = module.keyvault.key_vault_id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [module.keyvault]
-}
-
-resource "azurerm_key_vault_secret" "redis_primary_key" {
-  name         = "redis-primary-key"
-  value        = "not-applicable"
-  key_vault_id = module.keyvault.key_vault_id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [module.keyvault]
-}
-
 module "appgw" {
   source = "./modules/appgw"
 
@@ -157,35 +133,8 @@ module "appgw" {
   location            = var.location
   subnet_appgw_id     = module.networking.subnet_appgw_id
   key_vault_id        = module.keyvault.key_vault_id
+  key_vault_name      = var.key_vault_name
   domain_name         = var.domain_name
   tags                = local.tags
-}
-
-# DB Secrets at root level to avoid circular dependency
-resource "azurerm_key_vault_secret" "db_connection_string" {
-  name         = "db-connection-string"
-  value        = module.postgres.app_connection_string
-  key_vault_id = module.keyvault.key_vault_id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [module.keyvault, module.postgres]
-}
-
-resource "azurerm_key_vault_secret" "judge0_db_connection_string" {
-  name         = "judge0-db-connection-string"
-  value        = module.postgres.judge0_connection_string
-  key_vault_id = module.keyvault.key_vault_id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [module.keyvault, module.postgres]
-}
-
-resource "azurerm_key_vault_secret" "postgres_admin_password" {
-  name         = "postgres-admin-password"
-  value        = module.postgres.admin_password
-  key_vault_id = module.keyvault.key_vault_id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [module.keyvault, module.postgres]
 }
 

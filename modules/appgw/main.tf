@@ -32,53 +32,6 @@ resource "azurerm_role_assignment" "appgw_kv_secrets_user" {
   principal_id         = azurerm_user_assigned_identity.appgw.principal_id
 }
 
-# Generate self-signed SSL certificate inside Key Vault for the custom domain
-resource "azurerm_key_vault_certificate" "ssl_cert" {
-  name         = "clahan-ssl-cert"
-  key_vault_id = var.key_vault_id
-
-  certificate_policy {
-    issuer_parameters {
-      name = "Self"
-    }
-
-    key_properties {
-      exportable = true
-      key_size   = 2048
-      key_type   = "RSA"
-      reuse_key  = true
-    }
-
-    lifetime_action {
-      action {
-        action_type = "AutoRenew"
-      }
-      trigger {
-        days_before_expiry = 30
-      }
-    }
-
-    secret_properties {
-      content_type = "application/x-pkcs12"
-    }
-
-    x509_certificate_properties {
-      extended_key_usage = ["1.3.6.1.5.5.7.3.1"] # Server Auth
-      key_usage = [
-        "cRLSign",
-        "dataEncipherment",
-        "keyAgreement",
-        "keyCertSign",
-        "keyEncipherment",
-        "nonRepudiation",
-        "digitalSignature"
-      ]
-      subject            = "CN=${var.domain_name}"
-      validity_in_months = 12
-    }
-  }
-}
-
 # Public IP for the Application Gateway
 resource "azurerm_public_ip" "appgw" {
   name                = "pip-appgw"
@@ -155,7 +108,7 @@ resource "azurerm_application_gateway" "main" {
 
   ssl_certificate {
     name                = "clahan-ssl-cert"
-    key_vault_secret_id = azurerm_key_vault_certificate.ssl_cert.versionless_secret_id
+    key_vault_secret_id = "https://${var.key_vault_name}.vault.azure.net/secrets/clahan-ssl-cert"
   }
 
   backend_address_pool {

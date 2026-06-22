@@ -78,12 +78,6 @@ jobs:
     needs: setup
     
     env:
-      TF_VAR_smtp_pass: ${{ secrets.TF_VAR_smtp_pass }}
-      TF_VAR_smtp_user: ${{ secrets.TF_VAR_smtp_user }}
-      TF_VAR_smtp_from: ${{ secrets.TF_VAR_smtp_from }}
-      TF_VAR_snyk_token: ${{ secrets.TF_VAR_snyk_token }}
-      TF_VAR_sonar_token: ${{ secrets.TF_VAR_sonar_token }}
-      TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
       TF_VAR_github_app_client_id: ${{ secrets.TF_VAR_github_app_client_id }}
       TF_VAR_github_sp_object_id: ${{ secrets.TF_VAR_github_sp_object_id }}
       TF_VAR_deployer_object_id: ${{ secrets.TF_VAR_deployer_object_id }}
@@ -133,12 +127,6 @@ jobs:
     needs: [setup, terraform-validate]
     
     env:
-      TF_VAR_smtp_pass: ${{ secrets.TF_VAR_smtp_pass }}
-      TF_VAR_smtp_user: ${{ secrets.TF_VAR_smtp_user }}
-      TF_VAR_smtp_from: ${{ secrets.TF_VAR_smtp_from }}
-      TF_VAR_snyk_token: ${{ secrets.TF_VAR_snyk_token }}
-      TF_VAR_sonar_token: ${{ secrets.TF_VAR_sonar_token }}
-      TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
       TF_VAR_github_app_client_id: ${{ secrets.TF_VAR_github_app_client_id }}
       TF_VAR_github_sp_object_id: ${{ secrets.TF_VAR_github_sp_object_id }}
       TF_VAR_deployer_object_id: ${{ secrets.TF_VAR_deployer_object_id }}
@@ -211,12 +199,6 @@ jobs:
     environment: ${{ needs.setup.outputs.environment == 'prod' && 'production' || 'infrastructure' }}
     
     env:
-      TF_VAR_smtp_pass: ${{ secrets.TF_VAR_smtp_pass }}
-      TF_VAR_smtp_user: ${{ secrets.TF_VAR_smtp_user }}
-      TF_VAR_smtp_from: ${{ secrets.TF_VAR_smtp_from }}
-      TF_VAR_snyk_token: ${{ secrets.TF_VAR_snyk_token }}
-      TF_VAR_sonar_token: ${{ secrets.TF_VAR_sonar_token }}
-      TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
       TF_VAR_github_app_client_id: ${{ secrets.TF_VAR_github_app_client_id }}
       TF_VAR_github_sp_object_id: ${{ secrets.TF_VAR_github_sp_object_id }}
       TF_VAR_deployer_object_id: ${{ secrets.TF_VAR_deployer_object_id }}

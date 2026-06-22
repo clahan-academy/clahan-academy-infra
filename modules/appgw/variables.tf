@@ -20,6 +20,11 @@ variable "key_vault_id" {
   type        = string
 }
 
+variable "key_vault_name" {
+  description = "Name of the Azure Key Vault"
+  type        = string
+}
+
 variable "domain_name" {
   description = "Custom domain name for SSL certificate"
   type        = string

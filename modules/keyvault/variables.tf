@@ -21,6 +21,7 @@ variable "github_sp_object_id" {
   type = string
 }
 
+# Key Vault name (must be globally unique)
 variable "key_vault_name" {
   description = "Name of the Key Vault"
   type        = string
@@ -30,13 +31,4 @@ variable "key_vault_name" {
 variable "tags" {
   type    = map(string)
   default = {}
-}
-
-variable "secrets" {
-  description = "Sensitive secrets to store in Key Vault"
-  sensitive   = true
-  type = object({
-    blob_storage_account = string
-    blob_storage_key     = string
-  })
 }
