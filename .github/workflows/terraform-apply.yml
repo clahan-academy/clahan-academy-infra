@@ -241,12 +241,16 @@ jobs:
             KV_NAME=$(terraform output -raw key_vault_name)
             echo "Key Vault Name: $KV_NAME"
             
-            # 3. Create placeholder certificate in Key Vault if it doesn't exist
-            if ! az keyvault certificate show --vault-name "$KV_NAME" --name "clahan-ssl-cert" >/dev/null 2>&1; then
+            # 3. Create or recover placeholder certificate in Key Vault if needed
+            if az keyvault certificate show --vault-name "$KV_NAME" --name "clahan-ssl-cert" >/dev/null 2>&1; then
+              echo "Certificate 'clahan-ssl-cert' already exists and is active."
+            elif az keyvault certificate list-deleted --vault-name "$KV_NAME" --query "[?name=='clahan-ssl-cert']" -o tsv | grep -q "clahan-ssl-cert"; then
+              echo "Certificate 'clahan-ssl-cert' is in soft-deleted state. Recovering..."
+              az keyvault certificate recover --vault-name "$KV_NAME" --name "clahan-ssl-cert"
+              sleep 10
+            else
               echo "Creating placeholder certificate 'clahan-ssl-cert' in Key Vault..."
               az keyvault certificate create --vault-name "$KV_NAME" --name "clahan-ssl-cert" --policy "$(az keyvault certificate get-default-policy)"
-            else
-              echo "Placeholder certificate 'clahan-ssl-cert' already exists in Key Vault."
             fi
             
             # 4. Perform full apply for all resources (including Application Gateway)
