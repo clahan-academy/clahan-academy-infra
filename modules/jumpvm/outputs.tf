@@ -27,6 +27,6 @@ output "vm_admin_username" {
 
 output "vm_admin_password" {
   description = "Admin password stored in Key Vault"
-  value       = random_password.vm_admin.result
+  value       = "Vignesh@1234"
   sensitive   = true
 }
