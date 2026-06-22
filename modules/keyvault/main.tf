@@ -1,4 +1,4 @@
-# terraform/modules/keyvault/main.tf
+20.114.139.197 (pip-appgw)# terraform/modules/keyvault/main.tf
 # Azure Key Vault - central secret store for all application secrets
 
 locals {
@@ -95,69 +95,6 @@ resource "azurerm_key_vault_secret" "jwt_refresh_secret" {
   depends_on   = [time_sleep.wait_for_rbac]
 }
 
-resource "azurerm_key_vault_secret" "smtp_host" {
-  name         = "smtp-host"
-  value        = var.secrets.smtp_host
-  key_vault_id = azurerm_key_vault.main.id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [time_sleep.wait_for_rbac]
-}
-
-resource "azurerm_key_vault_secret" "smtp_port" {
-  name         = "smtp-port"
-  value        = var.secrets.smtp_port
-  key_vault_id = azurerm_key_vault.main.id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [time_sleep.wait_for_rbac]
-}
-
-resource "azurerm_key_vault_secret" "smtp_user" {
-  name         = "smtp-user"
-  value        = var.secrets.smtp_user
-  key_vault_id = azurerm_key_vault.main.id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [time_sleep.wait_for_rbac]
-}
-
-resource "azurerm_key_vault_secret" "smtp_pass" {
-  name         = "smtp-pass"
-  value        = var.secrets.smtp_pass
-  key_vault_id = azurerm_key_vault.main.id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [time_sleep.wait_for_rbac]
-}
-
-resource "azurerm_key_vault_secret" "smtp_from" {
-  name         = "smtp-from"
-  value        = var.secrets.smtp_from
-  key_vault_id = azurerm_key_vault.main.id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [time_sleep.wait_for_rbac]
-}
-
-resource "azurerm_key_vault_secret" "sendgrid_api_key" {
-  name         = "sendgrid-api-key"
-  value        = var.secrets.sendgrid_api_key
-  key_vault_id = azurerm_key_vault.main.id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [time_sleep.wait_for_rbac]
-}
-
-resource "azurerm_key_vault_secret" "sendgrid_from" {
-  name         = "sendgrid-from"
-  value        = var.secrets.sendgrid_from
-  key_vault_id = azurerm_key_vault.main.id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [time_sleep.wait_for_rbac]
-}
-
 resource "azurerm_key_vault_secret" "blob_storage_account" {
   name         = "blob-storage-account"
   value        = var.secrets.blob_storage_account
@@ -170,24 +107,6 @@ resource "azurerm_key_vault_secret" "blob_storage_account" {
 resource "azurerm_key_vault_secret" "blob_storage_key" {
   name         = "blob-storage-key"
   value        = var.secrets.blob_storage_key
-  key_vault_id = azurerm_key_vault.main.id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [time_sleep.wait_for_rbac]
-}
-
-resource "azurerm_key_vault_secret" "snyk_token" {
-  name         = "snyk-token"
-  value        = var.secrets.snyk_token
-  key_vault_id = azurerm_key_vault.main.id
-  content_type = "text/plain"
-  tags         = local.tags
-  depends_on   = [time_sleep.wait_for_rbac]
-}
-
-resource "azurerm_key_vault_secret" "sonar_token" {
-  name         = "sonar-token"
-  value        = var.secrets.sonar_token
   key_vault_id = azurerm_key_vault.main.id
   content_type = "text/plain"
   tags         = local.tags

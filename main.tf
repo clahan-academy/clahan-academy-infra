@@ -79,17 +79,8 @@ module "keyvault" {
   tags                = local.tags
 
   secrets = {
-    smtp_host            = var.smtp_host
-    smtp_port            = var.smtp_port
-    smtp_user            = var.smtp_user
-    smtp_pass            = var.smtp_pass
-    smtp_from            = var.smtp_from
-    sendgrid_api_key     = var.sendgrid_api_key
-    sendgrid_from        = var.sendgrid_from
     blob_storage_account = module.storage.storage_account_name
     blob_storage_key     = module.storage.primary_access_key
-    snyk_token           = var.snyk_token
-    sonar_token          = var.sonar_token
   }
 }
 

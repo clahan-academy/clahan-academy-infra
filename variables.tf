@@ -51,52 +51,6 @@ variable "admin_email" {
   default     = "admin@clahaanacademy.online"
 }
 
-variable "smtp_host" {
-  type    = string
-  default = "smtp.gmail.com"
-}
-
-variable "smtp_port" {
-  type    = string
-  default = "587"
-}
-
-variable "smtp_user" {
-  type      = string
-  sensitive = true
-}
-
-variable "smtp_pass" {
-  type      = string
-  sensitive = true
-}
-
-variable "smtp_from" {
-  type      = string
-  sensitive = true
-}
-
-variable "sendgrid_api_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "sendgrid_from" {
-  type    = string
-  default = ""
-}
-
-variable "snyk_token" {
-  type      = string
-  sensitive = true
-}
-
-variable "sonar_token" {
-  type      = string
-  sensitive = true
-}
-
 # AKS sizing (different per environment)
 variable "app_node_vm_size" {
   description = "VM size for AKS app node pool"

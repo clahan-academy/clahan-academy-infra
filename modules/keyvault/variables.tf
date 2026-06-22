@@ -36,16 +36,7 @@ variable "secrets" {
   description = "Sensitive secrets to store in Key Vault"
   sensitive   = true
   type = object({
-    smtp_host            = string
-    smtp_port            = string
-    smtp_user            = string
-    smtp_pass            = string
-    smtp_from            = string
-    sendgrid_api_key     = string
-    sendgrid_from        = string
     blob_storage_account = string
     blob_storage_key     = string
-    snyk_token           = string
-    sonar_token          = string
   })
 }

@@ -16,17 +16,6 @@ deployer_object_id   = "27378415-08cd-441e-857a-763364f8459a"
 # Admin
 admin_email = "admin@clahaanacademy.online"
 
-# SMTP (Replace with your SMTP/Gmail configurations)
-smtp_host = "smtp.gmail.com"
-smtp_port = "587"
-smtp_user = "YOUR_GMAIL_USERNAME@gmail.com"
-smtp_pass = "YOUR_GMAIL_APP_PASSWORD"
-smtp_from = "YOUR_GMAIL_USERNAME@gmail.com"
-
-# Security tokens
-snyk_token  = "YOUR_SNYK_TOKEN"
-sonar_token = "5c7418c03235a4fa41706224d3c075c4e9c425a7"
-
 # Key Vault (globally unique name)
 key_vault_name = "kv-clahan-prod"
 

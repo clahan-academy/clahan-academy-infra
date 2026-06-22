@@ -155,7 +155,7 @@ resource "azurerm_application_gateway" "main" {
 
   ssl_certificate {
     name                = "clahan-ssl-cert"
-    key_vault_secret_id = azurerm_key_vault_certificate.ssl_cert.secret_id
+    key_vault_secret_id = azurerm_key_vault_certificate.ssl_cert.versionless_secret_id
   }
 
   backend_address_pool {
