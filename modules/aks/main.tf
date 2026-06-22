@@ -96,7 +96,7 @@ resource "azurerm_kubernetes_cluster" "main" {
 resource "azurerm_kubernetes_cluster_node_pool" "ai" {
   name                  = "ai"
   kubernetes_cluster_id = azurerm_kubernetes_cluster.main.id
-  vm_size               = "Standard_D4s_v3"
+  vm_size               = "Standard_D2s_v3"
   node_count            = var.environment == "prod" ? 1 : 0
   vnet_subnet_id        = var.subnet_aks_id
   enable_auto_scaling   = false

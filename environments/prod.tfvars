@@ -32,9 +32,9 @@ key_vault_name = "kv-clahan-prod"
 
 # AKS PRODUCTION sizing
 app_node_vm_size = "Standard_D4s_v3"
-app_node_count   = 2
-app_min_count    = 2
-app_max_count    = 2
+app_node_count   = 1
+app_min_count    = 1
+app_max_count    = 1
 
 # PostgreSQL PRODUCTION
 postgres_sku           = "GP_Standard_D4s_v3"
