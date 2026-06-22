@@ -33,7 +33,7 @@ resource "azurerm_federated_identity_credential" "services" {
   parent_id           = azurerm_user_assigned_identity.services[each.key].id
   audience            = ["api://AzureADTokenExchange"]
   issuer              = var.aks_oidc_issuer_url
-  subject             = "system:serviceaccount:clahan-academy:clahan-${each.key}-sa"
+  subject             = "system:serviceaccount:${var.namespace}:clahan-${each.key}-sa"
 }
 
 # All services can read secrets from Key Vault

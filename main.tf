@@ -122,6 +122,7 @@ module "identity" {
   acr_id              = module.acr.acr_id
   github_sp_object_id = var.github_sp_object_id
   tags                = local.tags
+  namespace           = var.environment == "prod" ? "clahan-production" : "clahan-dev"
 }
 
 module "jumpvm" {

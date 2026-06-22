@@ -41,3 +41,8 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "namespace" {
+  description = "Kubernetes namespace where service accounts reside"
+  type        = string
+}
