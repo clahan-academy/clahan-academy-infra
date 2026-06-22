@@ -140,35 +140,23 @@ module "jumpvm" {
   tags                = local.tags
 }
 
-module "redis" {
-  source = "./modules/redis"
-
-  resource_group_name = module.networking.resource_group_name
-  resource_group_id   = module.networking.resource_group_id
-  location            = "eastus"
-  redis_capacity      = var.redis_capacity
-  key_vault_id        = module.keyvault.key_vault_id
-  environment         = var.environment
-  tags                = local.tags
+# Redis secrets defined directly (using in-cluster Redis)
+resource "azurerm_key_vault_secret" "redis_connection_string" {
+  name         = "redis-connection-string"
+  value        = "redis://redis:6379"
+  key_vault_id = module.keyvault.key_vault_id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [module.keyvault]
 }
 
-module "functions" {
-  count  = var.enable_functions ? 1 : 0
-  source = "./modules/functions"
-
-  subscription_id                  = var.subscription_id
-  resource_group_name              = module.networking.resource_group_name
-  location                         = var.location
-  storage_account_name             = module.storage.storage_account_name
-  storage_account_key              = module.storage.primary_access_key
-  app_insights_instrumentation_key = module.monitoring.app_insights_instrumentation_key
-  app_insights_connection_string   = module.monitoring.app_insights_connection_string
-  key_vault_id                     = module.keyvault.key_vault_id
-  aks_cluster_id                   = module.aks.cluster_id
-  redis_hostname                   = module.redis.redis_hostname
-  postgres_fqdn                    = module.postgres.server_fqdn
-  admin_email                      = var.admin_email
-  tags                             = local.tags
+resource "azurerm_key_vault_secret" "redis_primary_key" {
+  name         = "redis-primary-key"
+  value        = "not-applicable"
+  key_vault_id = module.keyvault.key_vault_id
+  content_type = "text/plain"
+  tags         = local.tags
+  depends_on   = [module.keyvault]
 }
 
 module "appgw" {
