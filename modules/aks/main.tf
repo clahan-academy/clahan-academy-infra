@@ -30,7 +30,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   kubernetes_version      = var.kubernetes_version
   dns_prefix              = var.dns_prefix
   sku_tier                = "Standard"
-  private_cluster_enabled = false
+  private_cluster_enabled = true
 
   depends_on = [azurerm_role_assignment.aks_vnet]
 
