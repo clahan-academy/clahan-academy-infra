@@ -63,12 +63,12 @@ resource "azurerm_linux_function_app" "main" {
     "RESOURCE_GROUP"        = var.resource_group_name
 
     # Key Vault secret references for SMTP alerts
-    "SMTP_HOST"    = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-host)"
-    "SMTP_PORT"    = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-port)"
-    "SMTP_USER"    = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-user)"
-    "SMTP_PASS"    = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-pass)"
-    "SMTP_FROM"    = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-from)"
-    "ADMIN_EMAIL"  = var.admin_email
+    "SMTP_HOST"   = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-host)"
+    "SMTP_PORT"   = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-port)"
+    "SMTP_USER"   = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-user)"
+    "SMTP_PASS"   = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-pass)"
+    "SMTP_FROM"   = "@Microsoft.KeyVault(VaultName=${split("/", var.key_vault_id)[8]};SecretName=smtp-from)"
+    "ADMIN_EMAIL" = var.admin_email
   }
 
   tags = local.tags
