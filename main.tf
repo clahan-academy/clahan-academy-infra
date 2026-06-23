@@ -132,7 +132,7 @@ module "functions" {
 
   subscription_id                  = var.subscription_id
   resource_group_name              = module.networking.resource_group_name
-  location                         = var.location
+  location                         = "eastus"
   storage_account_name             = module.storage.storage_account_name
   storage_account_key              = module.storage.primary_access_key
   app_insights_instrumentation_key = module.monitoring.app_insights_instrumentation_key
