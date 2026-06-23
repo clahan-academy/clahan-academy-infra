@@ -126,6 +126,22 @@ module "jumpvm" {
   tags                = local.tags
 }
 
+module "functions" {
+  count  = var.enable_functions ? 1 : 0
+  source = "./modules/functions"
+
+  subscription_id                  = var.subscription_id
+  resource_group_name              = module.networking.resource_group_name
+  location                         = var.location
+  storage_account_name             = module.storage.storage_account_name
+  storage_account_key              = module.storage.primary_access_key
+  app_insights_instrumentation_key = module.monitoring.app_insights_instrumentation_key
+  app_insights_connection_string   = module.monitoring.app_insights_connection_string
+  key_vault_id                     = module.keyvault.key_vault_id
+  admin_email                      = var.admin_email
+  tags                             = local.tags
+}
+
 module "appgw" {
   source = "./modules/appgw"
 
@@ -137,4 +153,5 @@ module "appgw" {
   domain_name         = var.domain_name
   tags                = local.tags
 }
+
 

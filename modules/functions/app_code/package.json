@@ -1,0 +1,14 @@
+{
+  "name": "clahan-cost-reporter",
+  "version": "1.0.0",
+  "description": "Daily Azure Cost & Resource Reporter",
+  "main": "src/functions/costReporter.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "@azure/identity": "^4.2.0",
+    "nodemailer": "^6.9.13"
+  }
+}
