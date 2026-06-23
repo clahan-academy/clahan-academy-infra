@@ -51,7 +51,7 @@ resource "azurerm_web_application_firewall_policy" "waf" {
 
   policy_settings {
     enabled            = true
-    mode               = "Prevention"
+    mode               = "Detection"
     request_body_check = true
   }
 
