@@ -133,10 +133,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Temporarily remove imports.tf for scanning
+        run: rm -f imports.tf
+
       - name: Terraform Security Scan
         uses: aquasecurity/tfsec-action@v1.0.3
-        with:
-          additional_args: --exclude-path imports.tf
 
   terraform-plan:
     name: "📋 Plan (${{ needs.setup.outputs.environment }})"
