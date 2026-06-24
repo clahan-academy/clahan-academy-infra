@@ -261,6 +261,18 @@ jobs:
             KV_NAME=$(terraform output -raw key_vault_name)
             echo "Key Vault Name: $KV_NAME"
             
+            # Get runner's public IP
+            RUNNER_IP=$(curl -s https://api.ipify.org)
+            echo "Runner Public IP: $RUNNER_IP"
+            
+            # Set up trap to clean up firewall rule on exit
+            trap 'echo "Removing Runner IP from Key Vault firewall..."; az keyvault network-rule remove --name "$KV_NAME" --ip-address "$RUNNER_IP" || true' EXIT
+            
+            # Temporarily allow runner IP in Key Vault firewall
+            echo "Allowing Runner IP in Key Vault firewall..."
+            az keyvault network-rule add --name "$KV_NAME" --ip-address "$RUNNER_IP"
+            sleep 15
+            
             # 3. Create or recover placeholder certificate in Key Vault if needed
             if az keyvault certificate show --vault-name "$KV_NAME" --name "clahan-ssl-cert" >/dev/null 2>&1; then
               echo "Certificate 'clahan-ssl-cert' already exists and is active."
@@ -272,6 +284,7 @@ jobs:
               echo "Creating placeholder certificate 'clahan-ssl-cert' in Key Vault..."
               az keyvault certificate create --vault-name "$KV_NAME" --name "clahan-ssl-cert" --policy "$(az keyvault certificate get-default-policy)"
             fi
+            
             
             # 4. Perform full apply for all resources (including Application Gateway)
             terraform apply -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
