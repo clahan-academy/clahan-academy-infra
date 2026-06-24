@@ -20,7 +20,7 @@ admin_email = "admin@clahaanacademy.online"
 key_vault_name = "kv-clahan-prod"
 
 # AKS PRODUCTION sizing
-app_node_vm_size = "Standard_D4s_v3"
+app_node_vm_size = "Standard_D2s_v3"
 app_node_count   = 1
 app_min_count    = 1
 app_max_count    = 3
