@@ -7,6 +7,10 @@ locals {
   })
 }
 
+data "http" "runner_ip" {
+  url = "https://api.ipify.org"
+}
+
 # Key Vault with RBAC authorization
 resource "azurerm_key_vault" "main" {
   name                          = var.key_vault_name
@@ -22,7 +26,7 @@ resource "azurerm_key_vault" "main" {
   network_acls {
     bypass         = "AzureServices"
     default_action = "Deny"
-    ip_rules       = []
+    ip_rules       = ["${chomp(data.http.runner_ip.response_body)}/32"]
   }
 
   tags = local.tags
