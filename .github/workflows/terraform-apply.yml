@@ -206,6 +206,39 @@ jobs:
             az storage account network-rule add --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP"
           fi
 
+          # Helper function to wait for firewall rules to propagate
+          wait_for_firewall() {
+            local kv_name=$1
+            local st_name=$2
+            local rg_name=$3
+            
+            if [ -n "$kv_name" ]; then
+              echo "Waiting for Key Vault $kv_name firewall to propagate..."
+              for i in {1..12}; do
+                if az keyvault secret list --vault-name "$kv_name" >/dev/null 2>&1; then
+                  echo "Key Vault is now accessible!"
+                  return 0
+                fi
+                echo "Key Vault firewall still propagating ($i/12)..."
+                sleep 5
+              done
+              echo "Key Vault firewall propagation check timed out after 60s, proceeding anyway..."
+            fi
+            
+            if [ -n "$st_name" ]; then
+              echo "Waiting for Storage Account $st_name firewall to propagate..."
+              for i in {1..12}; do
+                if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
+                  echo "Storage Account is now accessible!"
+                  return 0
+                fi
+                echo "Storage Account firewall still propagating ($i/12)..."
+                sleep 5
+              done
+              echo "Storage Account firewall propagation check timed out after 60s, proceeding anyway..."
+            fi
+          }
+
           # Setup cleanup trap
           if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
             trap 'echo "Cleaning up firewall rules...";
@@ -215,7 +248,12 @@ jobs:
                   if [ -n "$ST_EXISTS" ]; then
                     az storage account network-rule remove --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" || true
                   fi' EXIT
-            sleep 15
+            
+            local_kv=""
+            local_st=""
+            if [ -n "$KV_EXISTS" ]; then local_kv="$KV_NAME"; fi
+            if [ -n "$ST_EXISTS" ]; then local_st="$ST_NAME"; fi
+            wait_for_firewall "$local_kv" "$local_st" "$RG_NAME"
           fi
 
           # 3. Run plan
@@ -339,6 +377,39 @@ jobs:
             az storage account network-rule add --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP"
           fi
 
+          # Helper function to wait for firewall rules to propagate
+          wait_for_firewall() {
+            local kv_name=$1
+            local st_name=$2
+            local rg_name=$3
+            
+            if [ -n "$kv_name" ]; then
+              echo "Waiting for Key Vault $kv_name firewall to propagate..."
+              for i in {1..12}; do
+                if az keyvault secret list --vault-name "$kv_name" >/dev/null 2>&1; then
+                  echo "Key Vault is now accessible!"
+                  return 0
+                fi
+                echo "Key Vault firewall still propagating ($i/12)..."
+                sleep 5
+              done
+              echo "Key Vault firewall propagation check timed out after 60s, proceeding anyway..."
+            fi
+            
+            if [ -n "$st_name" ]; then
+              echo "Waiting for Storage Account $st_name firewall to propagate..."
+              for i in {1..12}; do
+                if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
+                  echo "Storage Account is now accessible!"
+                  return 0
+                fi
+                echo "Storage Account firewall still propagating ($i/12)..."
+                sleep 5
+              done
+              echo "Storage Account firewall propagation check timed out after 60s, proceeding anyway..."
+            fi
+          }
+
           # Setup cleanup trap
           if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
             trap 'echo "Cleaning up firewall rules...";
@@ -348,7 +419,12 @@ jobs:
                   if [ -n "$ST_EXISTS" ]; then
                     az storage account network-rule remove --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" || true
                   fi' EXIT
-            sleep 15
+            
+            local_kv=""
+            local_st=""
+            if [ -n "$KV_EXISTS" ]; then local_kv="$KV_NAME"; fi
+            if [ -n "$ST_EXISTS" ]; then local_st="$ST_NAME"; fi
+            wait_for_firewall "$local_kv" "$local_st" "$RG_NAME"
           fi
 
           # 4. Perform execution
@@ -372,7 +448,7 @@ jobs:
                     if [ -n "$ST_EXISTS" ]; then
                       az storage account network-rule remove --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" || true
                     fi' EXIT
-              sleep 15
+              wait_for_firewall "$KV_NAME" "" "$RG_NAME"
             fi
 
             # If Storage Account was just created/enabled, whitelist it now
@@ -389,7 +465,7 @@ jobs:
                     if [ -n "$ST_EXISTS" ]; then
                       az storage account network-rule remove --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" || true
                     fi' EXIT
-              sleep 15
+              wait_for_firewall "" "$ST_NAME" "$RG_NAME"
             fi
 
             # 5. Check and create placeholder certificate
