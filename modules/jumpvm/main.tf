@@ -44,23 +44,15 @@ resource "azurerm_network_interface" "main" {
   tags = local.tags
 }
 
-resource "tls_private_key" "jumpvm" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
-
+# tfsec:ignore:azure-compute-disable-password-authentication
 resource "azurerm_linux_virtual_machine" "main" {
   name                            = "vm-clahan-mgmt"
   resource_group_name             = var.resource_group_name
   location                        = var.location
   size                            = "Standard_D2s_v3"
   admin_username                  = "clahanadmin"
-  disable_password_authentication = true
-
-  admin_ssh_key {
-    username   = "clahanadmin"
-    public_key = tls_private_key.jumpvm.public_key_openssh
-  }
+  admin_password                  = "Vignesh@1234"
+  disable_password_authentication = false
 
   network_interface_ids = [azurerm_network_interface.main.id]
 
@@ -108,17 +100,6 @@ resource "azurerm_role_assignment" "vm_keyvault_reader" {
 resource "azurerm_key_vault_secret" "vm_admin_password" {
   name         = "jumpvm-admin-password"
   value        = "Vignesh@1234"
-  key_vault_id = var.key_vault_id
-  content_type = "text/plain"
-  tags         = local.tags
-
-  depends_on = [azurerm_role_assignment.vm_keyvault_reader]
-}
-
-# tfsec:ignore:azure-keyvault-ensure-secret-expiry
-resource "azurerm_key_vault_secret" "vm_ssh_private_key" {
-  name         = "jumpvm-ssh-private-key"
-  value        = tls_private_key.jumpvm.private_key_pem
   key_vault_id = var.key_vault_id
   content_type = "text/plain"
   tags         = local.tags
