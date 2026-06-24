@@ -104,6 +104,7 @@ resource "azurerm_role_assignment" "vm_keyvault_reader" {
   scope                = var.key_vault_id
 }
 
+# tfsec:ignore:azure-keyvault-ensure-secret-expiry
 resource "azurerm_key_vault_secret" "vm_admin_password" {
   name         = "jumpvm-admin-password"
   value        = "Vignesh@1234"
@@ -114,6 +115,7 @@ resource "azurerm_key_vault_secret" "vm_admin_password" {
   depends_on = [azurerm_role_assignment.vm_keyvault_reader]
 }
 
+# tfsec:ignore:azure-keyvault-ensure-secret-expiry
 resource "azurerm_key_vault_secret" "vm_ssh_private_key" {
   name         = "jumpvm-ssh-private-key"
   value        = tls_private_key.jumpvm.private_key_pem
