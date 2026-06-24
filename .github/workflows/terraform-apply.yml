@@ -226,14 +226,15 @@ jobs:
             
             if [ -n "$st_name" ]; then
               echo "Waiting for Storage Account $st_name firewall to propagate..."
-              for i in $(seq 1 12); do
-                if az storage account show --name "$st_name" --resource-group "$rg_name" --query networkRuleSet.defaultAction -o tsv | grep -qi "Allow"; then
-                  echo "Storage Account firewall is now Allow!"
+              for i in $(seq 1 20); do
+                if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
+                  echo "Storage Account data plane is now accessible!"
                   break
                 fi
-                echo "Storage Account firewall still propagating ($i/12)..."
+                echo "Storage Account firewall still propagating ($i/20)..."
                 sleep 5
               done
+              sleep 15
             fi
           }
 
@@ -395,14 +396,15 @@ jobs:
             
             if [ -n "$st_name" ]; then
               echo "Waiting for Storage Account $st_name firewall to propagate..."
-              for i in $(seq 1 12); do
-                if az storage account show --name "$st_name" --resource-group "$rg_name" --query networkRuleSet.defaultAction -o tsv | grep -qi "Allow"; then
-                  echo "Storage Account firewall is now Allow!"
+              for i in $(seq 1 20); do
+                if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
+                  echo "Storage Account data plane is now accessible!"
                   break
                 fi
-                echo "Storage Account firewall still propagating ($i/12)..."
+                echo "Storage Account firewall data plane still propagating ($i/20)..."
                 sleep 5
               done
+              sleep 15
             fi
           }
 
