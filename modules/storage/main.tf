@@ -6,6 +6,10 @@ locals {
   })
 }
 
+data "http" "runner_ip" {
+  url = "https://api.ipify.org"
+}
+
 # Storage account for AI models, profile photos, and CSV imports
 resource "azurerm_storage_account" "main" {
   name                            = var.environment == "prod" ? "stclahan65bf2554" : "stclahan65bf2554dev"
@@ -21,6 +25,7 @@ resource "azurerm_storage_account" "main" {
   network_rules {
     default_action = "Deny"
     bypass         = ["AzureServices"]
+    ip_rules       = [chomp(data.http.runner_ip.response_body)]
   }
 
   blob_properties {
