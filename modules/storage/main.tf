@@ -18,6 +18,11 @@ resource "azurerm_storage_account" "main" {
   allow_nested_items_to_be_public = false
   public_network_access_enabled   = true
 
+  network_rules {
+    default_action             = "Deny"
+    bypass                     = ["AzureServices"]
+  }
+
   blob_properties {
     versioning_enabled = true
     delete_retention_policy {
