@@ -24,6 +24,10 @@ terraform {
       source  = "azure/azapi"
       version = "~> 1.13"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 

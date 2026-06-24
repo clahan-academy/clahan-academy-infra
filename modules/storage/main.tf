@@ -19,8 +19,8 @@ resource "azurerm_storage_account" "main" {
   public_network_access_enabled   = true
 
   network_rules {
-    default_action             = "Deny"
-    bypass                     = ["AzureServices"]
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
   }
 
   blob_properties {
