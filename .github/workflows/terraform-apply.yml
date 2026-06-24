@@ -214,28 +214,26 @@ jobs:
             
             if [ -n "$kv_name" ]; then
               echo "Waiting for Key Vault $kv_name firewall to propagate..."
-              for i in {1..12}; do
+              for i in $(seq 1 12); do
                 if az keyvault secret list --vault-name "$kv_name" >/dev/null 2>&1; then
                   echo "Key Vault is now accessible!"
-                  return 0
+                  break
                 fi
                 echo "Key Vault firewall still propagating ($i/12)..."
                 sleep 5
               done
-              echo "Key Vault firewall propagation check timed out after 60s, proceeding anyway..."
             fi
             
             if [ -n "$st_name" ]; then
               echo "Waiting for Storage Account $st_name firewall to propagate..."
-              for i in {1..12}; do
+              for i in $(seq 1 12); do
                 if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
                   echo "Storage Account is now accessible!"
-                  return 0
+                  break
                 fi
                 echo "Storage Account firewall still propagating ($i/12)..."
                 sleep 5
               done
-              echo "Storage Account firewall propagation check timed out after 60s, proceeding anyway..."
             fi
           }
 
@@ -385,28 +383,26 @@ jobs:
             
             if [ -n "$kv_name" ]; then
               echo "Waiting for Key Vault $kv_name firewall to propagate..."
-              for i in {1..12}; do
+              for i in $(seq 1 12); do
                 if az keyvault secret list --vault-name "$kv_name" >/dev/null 2>&1; then
                   echo "Key Vault is now accessible!"
-                  return 0
+                  break
                 fi
                 echo "Key Vault firewall still propagating ($i/12)..."
                 sleep 5
               done
-              echo "Key Vault firewall propagation check timed out after 60s, proceeding anyway..."
             fi
             
             if [ -n "$st_name" ]; then
               echo "Waiting for Storage Account $st_name firewall to propagate..."
-              for i in {1..12}; do
+              for i in $(seq 1 12); do
                 if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
                   echo "Storage Account is now accessible!"
-                  return 0
+                  break
                 fi
                 echo "Storage Account firewall still propagating ($i/12)..."
                 sleep 5
               done
-              echo "Storage Account firewall propagation check timed out after 60s, proceeding anyway..."
             fi
           }
 
