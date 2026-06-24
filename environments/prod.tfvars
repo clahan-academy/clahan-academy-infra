@@ -23,7 +23,7 @@ key_vault_name = "kv-clahan-prod"
 app_node_vm_size = "Standard_D4s_v3"
 app_node_count   = 1
 app_min_count    = 1
-app_max_count    = 1
+app_max_count    = 3
 
 # PostgreSQL PRODUCTION
 postgres_sku           = "GP_Standard_D4s_v3"
