@@ -133,13 +133,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Trivy IaC Scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          scan-ref: '.'
-          exit-code: '1'
-          severity: 'HIGH,CRITICAL'
+      - name: Terraform Security Scan
+        uses: aquasecurity/tfsec-action@v1.0.3
 
   terraform-plan:
     name: "📋 Plan (${{ needs.setup.outputs.environment }})"
@@ -174,6 +169,25 @@ jobs:
         id: plan
         working-directory: ${{ needs.setup.outputs.tf_dir }}
         run: |
+          # 1. Get Key Vault name
+          KV_NAME=$(grep -E '^\s*key_vault_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
+          echo "Key Vault Name: $KV_NAME"
+
+          # 2. Check if the Key Vault exists and whitelist runner IP
+          if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
+            echo "Key Vault $KV_NAME exists. Whitelisting Runner IP in firewall..."
+            RUNNER_IP=$(curl -s https://api.ipify.org)
+            echo "Runner Public IP: $RUNNER_IP"
+            
+            trap 'echo "Removing Runner IP from Key Vault firewall..."; az keyvault network-rule remove --name "$KV_NAME" --ip-address "$RUNNER_IP" || true' EXIT
+            
+            az keyvault network-rule add --name "$KV_NAME" --ip-address "$RUNNER_IP"
+            sleep 15
+          else
+            echo "Key Vault $KV_NAME does not exist yet. Skipping firewall whitelisting."
+          fi
+
+          # 3. Run plan
           if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
             terraform plan -destroy -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan -detailed-exitcode -no-color 2>&1 | tee plan-output.txt
           else
@@ -251,29 +265,44 @@ jobs:
       - name: Terraform Apply or Destroy
         working-directory: ${{ needs.setup.outputs.tf_dir }}
         run: |
-          if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
-            terraform destroy -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
-          else
-            # 1. Target Key Vault module first to bootstrap it
-            terraform apply -target=module.keyvault -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
-            
-            # 2. Get Key Vault name
-            KV_NAME=$(terraform output -raw key_vault_name)
-            echo "Key Vault Name: $KV_NAME"
-            
-            # Get runner's public IP
+          # 1. Get Key Vault name
+          KV_NAME=$(grep -E '^\s*key_vault_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
+          echo "Key Vault Name: $KV_NAME"
+
+          # 2. Check if the Key Vault exists and whitelist runner IP
+          if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
+            echo "Key Vault $KV_NAME exists. Whitelisting Runner IP in firewall..."
             RUNNER_IP=$(curl -s https://api.ipify.org)
             echo "Runner Public IP: $RUNNER_IP"
             
-            # Set up trap to clean up firewall rule on exit
             trap 'echo "Removing Runner IP from Key Vault firewall..."; az keyvault network-rule remove --name "$KV_NAME" --ip-address "$RUNNER_IP" || true' EXIT
             
-            # Temporarily allow runner IP in Key Vault firewall
-            echo "Allowing Runner IP in Key Vault firewall..."
             az keyvault network-rule add --name "$KV_NAME" --ip-address "$RUNNER_IP"
             sleep 15
+          else
+            echo "Key Vault $KV_NAME does not exist yet. Skipping initial firewall whitelisting."
+          fi
+
+          # 3. Perform execution
+          if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
+            terraform destroy -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
+          else
+            # First bootstrap the Key Vault module
+            terraform apply -target=module.keyvault -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
             
-            # 3. Create or recover placeholder certificate in Key Vault if needed
+            # If Key Vault was just created, whitelist the runner IP now
+            if [ -z "$RUNNER_IP" ] && az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
+              echo "Key Vault $KV_NAME was just created. Whitelisting Runner IP..."
+              RUNNER_IP=$(curl -s https://api.ipify.org)
+              echo "Runner Public IP: $RUNNER_IP"
+              
+              trap 'echo "Removing Runner IP from Key Vault firewall..."; az keyvault network-rule remove --name "$KV_NAME" --ip-address "$RUNNER_IP" || true' EXIT
+              
+              az keyvault network-rule add --name "$KV_NAME" --ip-address "$RUNNER_IP"
+              sleep 15
+            fi
+
+            # 4. Check and create placeholder certificate
             if az keyvault certificate show --vault-name "$KV_NAME" --name "clahan-ssl-cert" >/dev/null 2>&1; then
               echo "Certificate 'clahan-ssl-cert' already exists and is active."
             elif az keyvault certificate list-deleted --vault-name "$KV_NAME" --query "[?name=='clahan-ssl-cert']" -o tsv | grep -q "clahan-ssl-cert"; then
@@ -285,8 +314,7 @@ jobs:
               az keyvault certificate create --vault-name "$KV_NAME" --name "clahan-ssl-cert" --policy "$(az keyvault certificate get-default-policy)"
             fi
             
-            
-            # 4. Perform full apply for all resources (including Application Gateway)
+            # 5. Perform full apply
             terraform apply -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
           fi
       
