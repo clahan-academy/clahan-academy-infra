@@ -190,20 +190,20 @@ jobs:
           RUNNER_IP=$(curl -s https://api.ipify.org)
           echo "Runner Public IP: $RUNNER_IP"
 
-          # 3. Check what exists and whitelist initially
+          # 3. Check what exists and temporarily allow public network access
           KV_EXISTS=""
           ST_EXISTS=""
 
           if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
             KV_EXISTS="true"
-            echo "Key Vault $KV_NAME exists. Whitelisting Runner IP..."
-            az keyvault network-rule add --name "$KV_NAME" --ip-address "$RUNNER_IP"
+            echo "Key Vault $KV_NAME exists. Temporarily allowing access from all networks..."
+            az keyvault update --name "$KV_NAME" --default-action Allow
           fi
 
           if az storage account show --name "$ST_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
             ST_EXISTS="true"
-            echo "Storage Account $ST_NAME exists. Whitelisting Runner IP..."
-            az storage account network-rule add --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP"
+            echo "Storage Account $ST_NAME exists. Temporarily allowing access from all networks..."
+            az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Allow
           fi
 
           # Helper function to wait for firewall rules to propagate
@@ -227,8 +227,8 @@ jobs:
             if [ -n "$st_name" ]; then
               echo "Waiting for Storage Account $st_name firewall to propagate..."
               for i in $(seq 1 12); do
-                if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
-                  echo "Storage Account is now accessible!"
+                if az storage account show --name "$st_name" --resource-group "$rg_name" --query networkRuleSet.defaultAction -o tsv | grep -qi "Allow"; then
+                  echo "Storage Account firewall is now Allow!"
                   break
                 fi
                 echo "Storage Account firewall still propagating ($i/12)..."
@@ -241,10 +241,10 @@ jobs:
           if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
             trap 'echo "Cleaning up firewall rules...";
                   if [ -n "$KV_EXISTS" ]; then
-                    az keyvault network-rule remove --name "$KV_NAME" --ip-address "$RUNNER_IP" || true
+                    az keyvault update --name "$KV_NAME" --default-action Deny || true
                   fi;
                   if [ -n "$ST_EXISTS" ]; then
-                    az storage account network-rule remove --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" || true
+                    az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
                   fi' EXIT
             
             local_kv=""
@@ -359,20 +359,20 @@ jobs:
           RUNNER_IP=$(curl -s https://api.ipify.org)
           echo "Runner Public IP: $RUNNER_IP"
 
-          # 3. Check what exists and whitelist initially
+          # 3. Check what exists and temporarily allow public network access
           KV_EXISTS=""
           ST_EXISTS=""
 
           if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
             KV_EXISTS="true"
-            echo "Key Vault $KV_NAME exists. Whitelisting Runner IP..."
-            az keyvault network-rule add --name "$KV_NAME" --ip-address "$RUNNER_IP"
+            echo "Key Vault $KV_NAME exists. Temporarily allowing access from all networks..."
+            az keyvault update --name "$KV_NAME" --default-action Allow
           fi
 
           if az storage account show --name "$ST_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
             ST_EXISTS="true"
-            echo "Storage Account $ST_NAME exists. Whitelisting Runner IP..."
-            az storage account network-rule add --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP"
+            echo "Storage Account $ST_NAME exists. Temporarily allowing access from all networks..."
+            az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Allow
           fi
 
           # Helper function to wait for firewall rules to propagate
@@ -396,8 +396,8 @@ jobs:
             if [ -n "$st_name" ]; then
               echo "Waiting for Storage Account $st_name firewall to propagate..."
               for i in $(seq 1 12); do
-                if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
-                  echo "Storage Account is now accessible!"
+                if az storage account show --name "$st_name" --resource-group "$rg_name" --query networkRuleSet.defaultAction -o tsv | grep -qi "Allow"; then
+                  echo "Storage Account firewall is now Allow!"
                   break
                 fi
                 echo "Storage Account firewall still propagating ($i/12)..."
@@ -410,10 +410,10 @@ jobs:
           if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
             trap 'echo "Cleaning up firewall rules...";
                   if [ -n "$KV_EXISTS" ]; then
-                    az keyvault network-rule remove --name "$KV_NAME" --ip-address "$RUNNER_IP" || true
+                    az keyvault update --name "$KV_NAME" --default-action Deny || true
                   fi;
                   if [ -n "$ST_EXISTS" ]; then
-                    az storage account network-rule remove --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" || true
+                    az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
                   fi' EXIT
             
             local_kv=""
@@ -430,36 +430,36 @@ jobs:
             # First bootstrap the Key Vault and Storage modules
             terraform apply -target=module.keyvault -target=module.storage -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
             
-            # If Key Vault was just created/enabled, whitelist it now
+            # If Key Vault was just created/enabled, temporarily allow it now
             if [ -z "$KV_EXISTS" ] && az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
               KV_EXISTS="true"
-              echo "Key Vault $KV_NAME was just created. Whitelisting Runner IP..."
-              az keyvault network-rule add --name "$KV_NAME" --ip-address "$RUNNER_IP"
+              echo "Key Vault $KV_NAME was just created. Temporarily allowing access from all networks..."
+              az keyvault update --name "$KV_NAME" --default-action Allow
               
               # Redefine trap to clean up Key Vault as well
               trap 'echo "Cleaning up firewall rules...";
                     if [ -n "$KV_EXISTS" ]; then
-                      az keyvault network-rule remove --name "$KV_NAME" --ip-address "$RUNNER_IP" || true
+                      az keyvault update --name "$KV_NAME" --default-action Deny || true
                     fi;
                     if [ -n "$ST_EXISTS" ]; then
-                      az storage account network-rule remove --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" || true
+                      az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
                     fi' EXIT
               wait_for_firewall "$KV_NAME" "" "$RG_NAME"
             fi
 
-            # If Storage Account was just created/enabled, whitelist it now
+            # If Storage Account was just created/enabled, temporarily allow it now
             if [ -z "$ST_EXISTS" ] && az storage account show --name "$ST_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
               ST_EXISTS="true"
-              echo "Storage Account $ST_NAME was just created. Whitelisting Runner IP..."
-              az storage account network-rule add --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP"
+              echo "Storage Account $ST_NAME was just created. Temporarily allowing access from all networks..."
+              az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Allow
               
               # Redefine trap to clean up Storage as well
               trap 'echo "Cleaning up firewall rules...";
                     if [ -n "$KV_EXISTS" ]; then
-                      az keyvault network-rule remove --name "$KV_NAME" --ip-address "$RUNNER_IP" || true
+                      az keyvault update --name "$KV_NAME" --default-action Deny || true
                     fi;
                     if [ -n "$ST_EXISTS" ]; then
-                      az storage account network-rule remove --account-name "$ST_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" || true
+                      az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
                     fi' EXIT
               wait_for_firewall "" "$ST_NAME" "$RG_NAME"
             fi
