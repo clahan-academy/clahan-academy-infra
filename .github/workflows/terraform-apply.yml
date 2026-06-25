@@ -138,23 +138,71 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Setup Key Vault firewall access (if exists)
+      - name: Run Plan with Firewall Bypass
         run: |
           KV_NAME=$(grep -E '^\s*key_vault_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
+          ENV_NAME=$(grep -E '^\s*environment\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
+          RG_NAME=$(grep -E '^\s*resource_group_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
+          
+          if [ "$ENV_NAME" == "prod" ]; then
+            ST_NAME="stclahan65bf2554"
+          else
+            ST_NAME="stclahan65bf2554dev"
+          fi
+
+          KV_EXISTS=""
+          ST_EXISTS=""
+
           if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
-            echo "Key Vault $KV_NAME exists. Temporarily allowing access for plan..."
+            KV_EXISTS="true"
+            echo "Key Vault $KV_NAME exists. Temporarily allowing access..."
             az keyvault update --name "$KV_NAME" --default-action Allow
           fi
 
-      - name: Plan Persistent Layer
-        if: github.event.inputs.action != 'destroy'
-        run: |
-          cd persistent
-          terraform init -reconfigure -backend-config="key=persistent-${{ needs.setup.outputs.environment }}.tfstate"
-          terraform plan -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan
-          
-      - name: Plan Transient Layer
-        run: |
+          if az storage account show --name "$ST_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
+            ST_EXISTS="true"
+            echo "Storage Account $ST_NAME exists. Temporarily allowing access..."
+            az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Allow
+          fi
+
+          # Wait for firewall propagation
+          if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
+            if [ -n "$KV_EXISTS" ]; then
+              for i in $(seq 1 12); do
+                if az keyvault secret list --vault-name "$KV_NAME" >/dev/null 2>&1; then break; fi
+                sleep 5
+              done
+            fi
+            if [ -n "$ST_EXISTS" ]; then
+              for i in $(seq 1 20); do
+                if az storage container list --account-name "$ST_NAME" --auth-mode login >/dev/null 2>&1; then break; fi
+                sleep 5
+              done
+              sleep 15
+            fi
+          fi
+
+          # Cleanup trap
+          if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
+            trap 'echo "Cleaning up firewall rules...";
+                  if [ -n "$KV_EXISTS" ]; then
+                    az keyvault update --name "$KV_NAME" --default-action Deny || true
+                  fi;
+                  if [ -n "$ST_EXISTS" ]; then
+                    az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
+                  fi' EXIT
+          fi
+
+          # Run the plans
+          if [ "${{ github.event.inputs.action }}" != "destroy" ]; then
+            echo "📋 Planning Persistent Layer..."
+            cd persistent
+            terraform init -reconfigure -backend-config="key=persistent-${{ needs.setup.outputs.environment }}.tfstate"
+            terraform plan -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan
+            cd ..
+          fi
+
+          echo "📋 Planning Transient Layer..."
           cd transient
           terraform init -reconfigure -backend-config="key=transient-${{ needs.setup.outputs.environment }}.tfstate"
           if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
@@ -195,24 +243,63 @@ jobs:
       - name: Run Apply or Destroy Action
         run: |
           KV_NAME=$(grep -E '^\s*key_vault_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
+          ENV_NAME=$(grep -E '^\s*environment\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
+          RG_NAME=$(grep -E '^\s*resource_group_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
           
+          if [ "$ENV_NAME" == "prod" ]; then
+            ST_NAME="stclahan65bf2554"
+          else
+            ST_NAME="stclahan65bf2554dev"
+          fi
+
+          KV_EXISTS=""
+          ST_EXISTS=""
+
+          if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
+            KV_EXISTS="true"
+            echo "Key Vault $KV_NAME exists. Temporarily allowing access..."
+            az keyvault update --name "$KV_NAME" --default-action Allow
+          fi
+
+          if az storage account show --name "$ST_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
+            ST_EXISTS="true"
+            echo "Storage Account $ST_NAME exists. Temporarily allowing access..."
+            az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Allow
+          fi
+
+          # Wait for firewall propagation
+          if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
+            if [ -n "$KV_EXISTS" ]; then
+              for i in $(seq 1 12); do
+                if az keyvault secret list --vault-name "$KV_NAME" >/dev/null 2>&1; then break; fi
+                sleep 5
+              done
+            fi
+            if [ -n "$ST_EXISTS" ]; then
+              for i in $(seq 1 20); do
+                if az storage container list --account-name "$ST_NAME" --auth-mode login >/dev/null 2>&1; then break; fi
+                sleep 5
+              done
+              sleep 15
+            fi
+          fi
+
+          # Cleanup trap
+          if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
+            trap 'echo "Cleaning up firewall rules...";
+                  if [ -n "$KV_EXISTS" ]; then
+                    az keyvault update --name "$KV_NAME" --default-action Deny || true
+                  fi;
+                  if [ -n "$ST_EXISTS" ]; then
+                    az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
+                  fi' EXIT
+          fi
+
           if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
             echo "🔥 DESTROY ACTION TRIGGERED: Deleting Transient Layer ONLY..."
-            
-            # Temporary firewall bypass if Key Vault exists
-            if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
-              az keyvault update --name "$KV_NAME" --default-action Allow
-            fi
-            
             cd transient
             terraform init -reconfigure -backend-config="key=transient-${{ needs.setup.outputs.environment }}.tfstate"
             terraform destroy -auto-approve -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars
-            
-            # Reset firewall
-            if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
-              az keyvault update --name "$KV_NAME" --default-action Deny
-            fi
-            
           else
             echo "🚀 APPLY ACTION TRIGGERED: Deploying Layered Infrastructure..."
             
@@ -222,11 +309,7 @@ jobs:
             terraform apply -auto-approve -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars
             
             # 2. Key Vault Certificate check & placeholder creation (required for Gateway)
-            if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
-              echo "Allowing Key Vault access temporarily..."
-              az keyvault update --name "$KV_NAME" --default-action Allow
-              sleep 10
-              
+            if [ -n "$KV_EXISTS" ]; then
               if az keyvault certificate show --vault-name "$KV_NAME" --name "clahan-ssl-cert" >/dev/null 2>&1; then
                 echo "Certificate 'clahan-ssl-cert' already exists."
               elif az keyvault certificate list-deleted --vault-name "$KV_NAME" --query "[?name=='clahan-ssl-cert']" -o tsv | grep -q "clahan-ssl-cert"; then
@@ -237,8 +320,6 @@ jobs:
                 echo "Creating placeholder certificate..."
                 az keyvault certificate create --vault-name "$KV_NAME" --name "clahan-ssl-cert" --policy "$(az keyvault certificate get-default-policy)"
               fi
-              
-              az keyvault update --name "$KV_NAME" --default-action Deny
             fi
             
             # 3. Apply Transient Layer
