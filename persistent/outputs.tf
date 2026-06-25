@@ -108,3 +108,7 @@ output "postgres_judge0_connection_string" {
 output "appgw_public_ip_id" {
   value = azurerm_public_ip.appgw.id
 }
+
+output "appgw_public_ip_address" {
+  value = azurerm_public_ip.appgw.ip_address
+}

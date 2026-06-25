@@ -1,13 +1,6 @@
-# modules/appgw/outputs.tf
-
-output "public_ip_address" {
-  description = "The public IP address of the Application Gateway"
-  value       = azurerm_public_ip.appgw.ip_address
-}
-
 output "public_ip_id" {
   description = "The ID of the public IP resource"
-  value       = azurerm_public_ip.appgw.id
+  value       = var.public_ip_id
 }
 
 output "appgw_id" {
