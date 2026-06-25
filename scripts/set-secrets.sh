@@ -5,7 +5,7 @@
 set -e
 
 # Target Key Vault name
-VAULT_NAME="kv-clahan-65bf2554"
+VAULT_NAME="kv-clahan-prod"
 
 echo "Verifying Azure connection..."
 if ! az account show --query name -o tsv > /dev/null 2>&1; then
