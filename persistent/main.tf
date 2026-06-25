@@ -76,3 +76,13 @@ module "keyvault" {
   key_vault_name      = var.key_vault_name
   tags                = local.tags
 }
+
+# Persistent Public IP for Application Gateway (keeps the same IP on recreate)
+resource "azurerm_public_ip" "appgw" {
+  name                = "pip-appgw-clahan-academy"
+  resource_group_name = module.networking.resource_group_name
+  location            = var.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = local.tags
+}

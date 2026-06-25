@@ -32,16 +32,6 @@ resource "azurerm_role_assignment" "appgw_kv_secrets_user" {
   principal_id         = azurerm_user_assigned_identity.appgw.principal_id
 }
 
-# Public IP for the Application Gateway
-resource "azurerm_public_ip" "appgw" {
-  name                = "pip-appgw"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  tags                = local.tags
-}
-
 # WAF Policy with OWASP 3.2 protection
 resource "azurerm_web_application_firewall_policy" "waf" {
   name                = "waf-policy-clahan"
@@ -103,7 +93,7 @@ resource "azurerm_application_gateway" "main" {
 
   frontend_ip_configuration {
     name                 = local.frontend_ip_configuration_name
-    public_ip_address_id = azurerm_public_ip.appgw.id
+    public_ip_address_id = var.public_ip_id
   }
 
   ssl_certificate {

@@ -94,5 +94,6 @@ module "appgw" {
   key_vault_id        = data.terraform_remote_state.persistent.outputs.key_vault_id
   key_vault_name      = data.terraform_remote_state.persistent.outputs.key_vault_name
   domain_name         = var.domain_name
+  public_ip_id        = data.terraform_remote_state.persistent.outputs.appgw_public_ip_id
   tags                = local.tags
 }

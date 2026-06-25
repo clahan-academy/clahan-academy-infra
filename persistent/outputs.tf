@@ -104,3 +104,7 @@ output "postgres_judge0_connection_string" {
   value     = module.postgres.judge0_connection_string
   sensitive = true
 }
+
+output "appgw_public_ip_id" {
+  value = azurerm_public_ip.appgw.id
+}

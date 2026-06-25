@@ -36,3 +36,8 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "public_ip_id" {
+  description = "ID of the pre-allocated Public IP for Application Gateway"
+  type        = string
+}
