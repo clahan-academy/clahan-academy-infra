@@ -1,0 +1,9 @@
+# persistent/backend.tf
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "rg-clahan-tfstate"
+    storage_account_name = "stclahantfstate65bf2554"
+    container_name       = "tfstate"
+    key                  = "persistent.tfstate"
+  }
+}

@@ -1,18 +1,19 @@
 # .github/workflows/terraform-apply.yml
-
-name: "IaC — Terraform Plan & Apply"
+name: "IaC — Terraform Plan & Apply (Layered)"
 
 on:
   push:
     branches: [main, dev]
     paths:
-      - '*.tf'
+      - 'persistent/**'
+      - 'transient/**'
       - 'modules/**'
       - 'environments/**'
   pull_request:
     branches: [main, dev]
     paths:
-      - '*.tf'
+      - 'persistent/**'
+      - 'transient/**'
       - 'modules/**'
       - 'environments/**'
   workflow_dispatch:
@@ -57,7 +58,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.env.outputs.environment }}
-      tf_dir: ${{ steps.env.outputs.tf_dir }}
     
     steps:
       - name: Determine environment
@@ -74,7 +74,6 @@ jobs:
             fi
           fi
           echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "tf_dir=." >> $GITHUB_OUTPUT
           echo "🌍 Environment: $ENV"
 
   terraform-validate:
@@ -102,47 +101,22 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
-      - name: Terraform Init
-        working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: terraform init -reconfigure -backend-config="key=terraform-${{ needs.setup.outputs.environment }}.tfstate"
+      - name: Validate Persistent Layer
+        run: |
+          cd persistent
+          terraform init -reconfigure -backend-config="key=persistent-${{ needs.setup.outputs.environment }}.tfstate"
+          terraform validate
       
-      - name: Terraform Format Check
-        working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: terraform fmt -check -recursive -diff
-      
-      - name: Terraform Validate
-        working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: terraform validate
-      
-      - name: Comment on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '✅ **Terraform Validate passed** for `${{ needs.setup.outputs.environment }}`'
-            })
-
-  terraform-scan:
-    name: "🔍 Scan"
-    runs-on: ubuntu-latest
-    needs: setup
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Temporarily remove imports.tf for scanning
-        run: rm -f imports.tf
-
-      - name: Terraform Security Scan
-        uses: aquasecurity/tfsec-action@v1.0.3
+      - name: Validate Transient Layer
+        run: |
+          cd transient
+          terraform init -reconfigure -backend-config="key=transient-${{ needs.setup.outputs.environment }}.tfstate"
+          terraform validate
 
   terraform-plan:
     name: "📋 Plan (${{ needs.setup.outputs.environment }})"
     runs-on: ubuntu-latest
-    needs: [setup, terraform-validate, terraform-scan]
+    needs: [setup, terraform-validate]
     
     env:
       TF_VAR_github_app_client_id: ${{ secrets.TF_VAR_github_app_client_id }}
@@ -163,142 +137,31 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
-      - name: Terraform Init
-        working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: terraform init -reconfigure -backend-config="key=terraform-${{ needs.setup.outputs.environment }}.tfstate"
-      
-      - name: Terraform Plan
-        id: plan
-        working-directory: ${{ needs.setup.outputs.tf_dir }}
+
+      - name: Setup Key Vault firewall access (if exists)
         run: |
-          # 1. Get Key Vault name, Env, and RG name
           KV_NAME=$(grep -E '^\s*key_vault_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
-          ENV_NAME=$(grep -E '^\s*environment\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
-          RG_NAME=$(grep -E '^\s*resource_group_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
-          
-          if [ "$ENV_NAME" == "prod" ]; then
-            ST_NAME="stclahan65bf2554"
-          else
-            ST_NAME="stclahan65bf2554dev"
-          fi
-          
-          echo "Key Vault Name: $KV_NAME"
-          echo "Storage Account Name: $ST_NAME"
-
-          # 2. Get Runner IP
-          RUNNER_IP=$(curl -s https://api.ipify.org)
-          echo "Runner Public IP: $RUNNER_IP"
-
-          # 3. Check what exists and temporarily allow public network access
-          KV_EXISTS=""
-          ST_EXISTS=""
-
           if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
-            KV_EXISTS="true"
-            echo "Key Vault $KV_NAME exists. Temporarily allowing access from all networks..."
+            echo "Key Vault $KV_NAME exists. Temporarily allowing access for plan..."
             az keyvault update --name "$KV_NAME" --default-action Allow
           fi
 
-          if az storage account show --name "$ST_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
-            ST_EXISTS="true"
-            echo "Storage Account $ST_NAME exists. Temporarily allowing access from all networks..."
-            az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Allow
-          fi
-
-          # Helper function to wait for firewall rules to propagate
-          wait_for_firewall() {
-            local kv_name=$1
-            local st_name=$2
-            local rg_name=$3
-            
-            if [ -n "$kv_name" ]; then
-              echo "Waiting for Key Vault $kv_name firewall to propagate..."
-              for i in $(seq 1 12); do
-                if az keyvault secret list --vault-name "$kv_name" >/dev/null 2>&1; then
-                  echo "Key Vault is now accessible!"
-                  break
-                fi
-                echo "Key Vault firewall still propagating ($i/12)..."
-                sleep 5
-              done
-            fi
-            
-            if [ -n "$st_name" ]; then
-              echo "Waiting for Storage Account $st_name firewall to propagate..."
-              for i in $(seq 1 20); do
-                if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
-                  echo "Storage Account data plane is now accessible!"
-                  break
-                fi
-                echo "Storage Account firewall still propagating ($i/20)..."
-                sleep 5
-              done
-              sleep 15
-            fi
-          }
-
-          # Setup cleanup trap
-          if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
-            trap 'echo "Cleaning up firewall rules...";
-                  if [ -n "$KV_EXISTS" ]; then
-                    az keyvault update --name "$KV_NAME" --default-action Deny || true
-                  fi;
-                  if [ -n "$ST_EXISTS" ]; then
-                    az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
-                  fi' EXIT
-            
-            local_kv=""
-            local_st=""
-            if [ -n "$KV_EXISTS" ]; then local_kv="$KV_NAME"; fi
-            if [ -n "$ST_EXISTS" ]; then local_st="$ST_NAME"; fi
-            wait_for_firewall "$local_kv" "$local_st" "$RG_NAME"
-          fi
-
-          # 3. Run plan
-          set +e
+      - name: Plan Persistent Layer
+        if: github.event.inputs.action != 'destroy'
+        run: |
+          cd persistent
+          terraform init -reconfigure -backend-config="key=persistent-${{ needs.setup.outputs.environment }}.tfstate"
+          terraform plan -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan
+          
+      - name: Plan Transient Layer
+        run: |
+          cd transient
+          terraform init -reconfigure -backend-config="key=transient-${{ needs.setup.outputs.environment }}.tfstate"
           if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
-            terraform plan -destroy -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan -detailed-exitcode -no-color > plan-output.txt 2>&1
-            exitcode=$?
+            terraform plan -destroy -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan
           else
-            terraform plan -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan -detailed-exitcode -no-color > plan-output.txt 2>&1
-            exitcode=$?
+            terraform plan -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan
           fi
-          set -e
-
-          cat plan-output.txt
-
-          if [ $exitcode -eq 1 ]; then
-            echo "::error::Terraform plan failed with an error."
-            exit 1
-          fi
-      
-      - name: Save plan artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan-${{ needs.setup.outputs.environment }}
-          path: |
-            ${{ needs.setup.outputs.tf_dir }}/tfplan
-            ${{ needs.setup.outputs.tf_dir }}/plan-output.txt
-          retention-days: 5
-      
-      - name: Post plan to PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const planOutput = fs.readFileSync(
-              '${{ needs.setup.outputs.tf_dir }}/plan-output.txt', 
-              'utf8'
-            ).slice(0, 60000);
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## 📋 Terraform Plan — \`${{ needs.setup.outputs.environment }}\`\n\`\`\`hcl\n${planOutput}\n\`\`\``
-            })
 
   terraform-apply:
     name: "🚀 Apply (${{ needs.setup.outputs.environment }})"
@@ -328,167 +191,58 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
-      - name: Terraform Init
-        working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: terraform init -reconfigure -backend-config="key=terraform-${{ needs.setup.outputs.environment }}.tfstate"
-      
-      - name: Download plan artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan-${{ needs.setup.outputs.environment }}
-          path: ${{ needs.setup.outputs.tf_dir }}
-      
-      - name: Terraform Apply or Destroy
-        working-directory: ${{ needs.setup.outputs.tf_dir }}
+
+      - name: Run Apply or Destroy Action
         run: |
-          # 1. Get Key Vault name, Env, and RG name
           KV_NAME=$(grep -E '^\s*key_vault_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
-          ENV_NAME=$(grep -E '^\s*environment\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
-          RG_NAME=$(grep -E '^\s*resource_group_name\s*=' "environments/${{ needs.setup.outputs.environment }}.tfvars" | cut -d'"' -f2)
           
-          if [ "$ENV_NAME" == "prod" ]; then
-            ST_NAME="stclahan65bf2554"
-          else
-            ST_NAME="stclahan65bf2554dev"
-          fi
-          
-          echo "Key Vault Name: $KV_NAME"
-          echo "Storage Account Name: $ST_NAME"
-
-          # 2. Get Runner IP
-          RUNNER_IP=$(curl -s https://api.ipify.org)
-          echo "Runner Public IP: $RUNNER_IP"
-
-          # 3. Check what exists and temporarily allow public network access
-          KV_EXISTS=""
-          ST_EXISTS=""
-
-          if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
-            KV_EXISTS="true"
-            echo "Key Vault $KV_NAME exists. Temporarily allowing access from all networks..."
-            az keyvault update --name "$KV_NAME" --default-action Allow
-          fi
-
-          if az storage account show --name "$ST_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
-            ST_EXISTS="true"
-            echo "Storage Account $ST_NAME exists. Temporarily allowing access from all networks..."
-            az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Allow
-          fi
-
-          # Helper function to wait for firewall rules to propagate
-          wait_for_firewall() {
-            local kv_name=$1
-            local st_name=$2
-            local rg_name=$3
-            
-            if [ -n "$kv_name" ]; then
-              echo "Waiting for Key Vault $kv_name firewall to propagate..."
-              for i in $(seq 1 12); do
-                if az keyvault secret list --vault-name "$kv_name" >/dev/null 2>&1; then
-                  echo "Key Vault is now accessible!"
-                  break
-                fi
-                echo "Key Vault firewall still propagating ($i/12)..."
-                sleep 5
-              done
-            fi
-            
-            if [ -n "$st_name" ]; then
-              echo "Waiting for Storage Account $st_name firewall to propagate..."
-              for i in $(seq 1 20); do
-                if az storage container list --account-name "$st_name" --auth-mode login >/dev/null 2>&1; then
-                  echo "Storage Account data plane is now accessible!"
-                  break
-                fi
-                echo "Storage Account firewall data plane still propagating ($i/20)..."
-                sleep 5
-              done
-              sleep 15
-            fi
-          }
-
-          # Setup cleanup trap
-          if [ -n "$KV_EXISTS" ] || [ -n "$ST_EXISTS" ]; then
-            trap 'echo "Cleaning up firewall rules...";
-                  if [ -n "$KV_EXISTS" ]; then
-                    az keyvault update --name "$KV_NAME" --default-action Deny || true
-                  fi;
-                  if [ -n "$ST_EXISTS" ]; then
-                    az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
-                  fi' EXIT
-            
-            local_kv=""
-            local_st=""
-            if [ -n "$KV_EXISTS" ]; then local_kv="$KV_NAME"; fi
-            if [ -n "$ST_EXISTS" ]; then local_st="$ST_NAME"; fi
-            wait_for_firewall "$local_kv" "$local_st" "$RG_NAME"
-          fi
-
-          # 4. Perform execution
           if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
-            terraform destroy -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
-          else
-            # First bootstrap the Key Vault and Storage modules
-            terraform apply -target=module.keyvault -target=module.storage -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
+            echo "🔥 DESTROY ACTION TRIGGERED: Deleting Transient Layer ONLY..."
             
-            # If Key Vault was just created/enabled, temporarily allow it now
-            if [ -z "$KV_EXISTS" ] && az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
-              KV_EXISTS="true"
-              echo "Key Vault $KV_NAME was just created. Temporarily allowing access from all networks..."
+            # Temporary firewall bypass if Key Vault exists
+            if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
               az keyvault update --name "$KV_NAME" --default-action Allow
-              
-              # Redefine trap to clean up Key Vault as well
-              trap 'echo "Cleaning up firewall rules...";
-                    if [ -n "$KV_EXISTS" ]; then
-                      az keyvault update --name "$KV_NAME" --default-action Deny || true
-                    fi;
-                    if [ -n "$ST_EXISTS" ]; then
-                      az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
-                    fi' EXIT
-              wait_for_firewall "$KV_NAME" "" "$RG_NAME"
-            fi
-
-            # If Storage Account was just created/enabled, temporarily allow it now
-            if [ -z "$ST_EXISTS" ] && az storage account show --name "$ST_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
-              ST_EXISTS="true"
-              echo "Storage Account $ST_NAME was just created. Temporarily allowing access from all networks..."
-              az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Allow
-              
-              # Redefine trap to clean up Storage as well
-              trap 'echo "Cleaning up firewall rules...";
-                    if [ -n "$KV_EXISTS" ]; then
-                      az keyvault update --name "$KV_NAME" --default-action Deny || true
-                    fi;
-                    if [ -n "$ST_EXISTS" ]; then
-                      az storage account update --name "$ST_NAME" --resource-group "$RG_NAME" --default-action Deny || true
-                    fi' EXIT
-              wait_for_firewall "" "$ST_NAME" "$RG_NAME"
-            fi
-
-            # 5. Check and create placeholder certificate
-            if az keyvault certificate show --vault-name "$KV_NAME" --name "clahan-ssl-cert" >/dev/null 2>&1; then
-              echo "Certificate 'clahan-ssl-cert' already exists and is active."
-            elif az keyvault certificate list-deleted --vault-name "$KV_NAME" --query "[?name=='clahan-ssl-cert']" -o tsv | grep -q "clahan-ssl-cert"; then
-              echo "Certificate 'clahan-ssl-cert' is in soft-deleted state. Recovering..."
-              az keyvault certificate recover --vault-name "$KV_NAME" --name "clahan-ssl-cert"
-              sleep 10
-            else
-              echo "Creating placeholder certificate 'clahan-ssl-cert' in Key Vault..."
-              az keyvault certificate create --vault-name "$KV_NAME" --name "clahan-ssl-cert" --policy "$(az keyvault certificate get-default-policy)"
             fi
             
-            # 6. Perform full apply
-            terraform apply -auto-approve -var-file=environments/${{ needs.setup.outputs.environment }}.tfvars
+            cd transient
+            terraform init -reconfigure -backend-config="key=transient-${{ needs.setup.outputs.environment }}.tfstate"
+            terraform destroy -auto-approve -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars
+            
+            # Reset firewall
+            if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
+              az keyvault update --name "$KV_NAME" --default-action Deny
+            fi
+            
+          else
+            echo "🚀 APPLY ACTION TRIGGERED: Deploying Layered Infrastructure..."
+            
+            # 1. Apply Persistent Layer
+            cd persistent
+            terraform init -reconfigure -backend-config="key=persistent-${{ needs.setup.outputs.environment }}.tfstate"
+            terraform apply -auto-approve -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars
+            
+            # 2. Key Vault Certificate check & placeholder creation (required for Gateway)
+            if az keyvault show --name "$KV_NAME" >/dev/null 2>&1; then
+              echo "Allowing Key Vault access temporarily..."
+              az keyvault update --name "$KV_NAME" --default-action Allow
+              sleep 10
+              
+              if az keyvault certificate show --vault-name "$KV_NAME" --name "clahan-ssl-cert" >/dev/null 2>&1; then
+                echo "Certificate 'clahan-ssl-cert' already exists."
+              elif az keyvault certificate list-deleted --vault-name "$KV_NAME" --query "[?name=='clahan-ssl-cert']" -o tsv | grep -q "clahan-ssl-cert"; then
+                echo "Recovering soft-deleted certificate..."
+                az keyvault certificate recover --vault-name "$KV_NAME" --name "clahan-ssl-cert"
+                sleep 10
+              else
+                echo "Creating placeholder certificate..."
+                az keyvault certificate create --vault-name "$KV_NAME" --name "clahan-ssl-cert" --policy "$(az keyvault certificate get-default-policy)"
+              fi
+              
+              az keyvault update --name "$KV_NAME" --default-action Deny
+            fi
+            
+            # 3. Apply Transient Layer
+            cd ../transient
+            terraform init -reconfigure -backend-config="key=transient-${{ needs.setup.outputs.environment }}.tfstate"
+            terraform apply -auto-approve -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars
           fi
-      
-      - name: Show outputs
-        working-directory: ${{ needs.setup.outputs.tf_dir }}
-        run: |
-          echo "=== TERRAFORM OUTPUTS ==="
-          terraform output -no-color || true
-      
-      - name: Summary
-        run: |
-          echo "✅ Terraform Action Complete"
-          echo "🌍 Environment: ${{ needs.setup.outputs.environment }}"

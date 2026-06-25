@@ -1,7 +1,6 @@
-# terraform/private_endpoints.tf
-# Configures Private Endpoints for Key Vault, ACR, Redis, and Storage Account
+# persistent/private_endpoints.tf
+# Configures Private Endpoints for Key Vault, ACR, and Storage Account in the persistent layer
 
-# 1. Key Vault Private Endpoint
 resource "azurerm_private_endpoint" "keyvault" {
   name                = "pe-keyvault"
   location            = var.location
@@ -23,7 +22,6 @@ resource "azurerm_private_endpoint" "keyvault" {
   tags = local.tags
 }
 
-# 2. Azure Container Registry (ACR) Private Endpoint
 resource "azurerm_private_endpoint" "acr" {
   name                = "pe-acr"
   location            = var.location
@@ -45,7 +43,6 @@ resource "azurerm_private_endpoint" "acr" {
   tags = local.tags
 }
 
-# 4. Storage Account Private Endpoint (Blob)
 resource "azurerm_private_endpoint" "storage_blob" {
   name                = "pe-storage-blob"
   location            = var.location
