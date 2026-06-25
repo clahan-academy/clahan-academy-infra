@@ -40,7 +40,7 @@ create_k8s_secret() {
         fi
         
         # Escape value for kubectl if needed
-        cmd="$cmd --from-literal=$key=$value"
+        cmd="$cmd --from-literal=$key='$value'"
     done
     
     # Delete existing secret if it exists
