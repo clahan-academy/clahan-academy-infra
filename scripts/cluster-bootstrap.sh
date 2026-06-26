@@ -66,9 +66,24 @@ if kubectl get namespace argocd >/dev/null 2>&1 && kubectl get deploy argocd-ser
   warn "ArgoCD already installed, skipping"
 else
   kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-  kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+  # --server-side avoids "metadata.annotations: Too long" on the
+  # applicationsets.argoproj.io CRD: client-side `kubectl apply` stores the
+  # whole manifest in a last-applied-configuration annotation, which
+  # overflows the 262144 byte limit on this particular CRD. Server-side
+  # apply tracks field ownership instead and never hits that limit.
+  kubectl apply --server-side -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
   info "Waiting for ArgoCD pods to be ready (up to 3 min)..."
   kubectl wait --for=condition=available --timeout=180s deployment/argocd-server -n argocd
+
+  # argocd-server serves TLS on its main port by default. Our Gateway/AppGW
+  # setup terminates TLS upstream and sends plain HTTP to backends, so
+  # without this, every request through argocd-routes gets a bodiless 500
+  # from Envoy (it receives TLS handshake bytes back when it expected HTTP
+  # and can't parse them).
+  info "Setting argocd-server to --insecure (TLS terminates upstream at AppGW, not here)..."
+  kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '{"data":{"server.insecure":"true"}}'
+  kubectl rollout restart deployment argocd-server -n argocd
+  kubectl rollout status deployment argocd-server -n argocd --timeout=120s
 fi
 success "ArgoCD ready"
 
@@ -191,11 +206,18 @@ spec:
 EOF
 success "AppProject + Application applied"
 
-# ---- Step 5: Push secrets from Key Vault ----
-info "Step 5: Pushing secrets from $KEY_VAULT into $NAMESPACE..."
-chmod +x "$INFRA_REPO_DIR/scripts/push-secrets.sh"
-"$INFRA_REPO_DIR/scripts/push-secrets.sh" "$KEY_VAULT" "$NAMESPACE"
-success "Secrets pushed"
+# ---- Step 5: push-secrets.sh intentionally NOT run here ----
+# Confirmed by inspecting auth-deployment.yaml (and the other Helm-deployed
+# services): they fetch secrets directly from Key Vault at runtime via
+# @azure/identity + Workload Identity (KEY_VAULT_NAME env var + the
+# federated ServiceAccount) - they never read the Kubernetes Secret objects
+# push-secrets.sh creates. Running it only produced confusing "[WARNING]
+# Secret not found" noise for values nothing consumes, and left an extra
+# plaintext-recoverable (base64-only) copy of every secret sitting in etcd
+# for no benefit. push-secrets.sh itself is left in scripts/ in case the
+# kubernetes/ standalone manifest path (a separate, non-GitOps deployment
+# approach) is ever used instead - that path does read these via
+# secretKeyRef/envFrom.
 
 # ---- Step 6: Force initial sync ----
 info "Step 6: Forcing initial ArgoCD sync..."
