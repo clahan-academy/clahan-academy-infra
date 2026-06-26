@@ -32,6 +32,17 @@ resource "azurerm_role_assignment" "appgw_kv_secrets_user" {
   principal_id         = azurerm_user_assigned_identity.appgw.principal_id
 }
 
+# Azure AD role assignment propagation is eventually-consistent: ARM reports
+# the assignment as "succeeded" well before Key Vault's data plane actually
+# honors it. depends_on alone only waits for the ARM write, not propagation,
+# so a freshly created mi-appgw-clahan identity can fail its first SSL
+# certificate fetch and leave the HTTPS listener stuck (root cause of the
+# Bad Gateway recurring after every transient destroy/apply cycle).
+resource "time_sleep" "wait_for_appgw_kv_rbac" {
+  depends_on      = [azurerm_role_assignment.appgw_kv_secrets_user]
+  create_duration = "120s"
+}
+
 # WAF Policy with OWASP 3.2 protection
 resource "azurerm_web_application_firewall_policy" "waf" {
   name                = "waf-policy-clahan"
@@ -174,6 +185,57 @@ resource "azurerm_application_gateway" "main" {
   firewall_policy_id = azurerm_web_application_firewall_policy.waf.id
 
   depends_on = [
-    azurerm_role_assignment.appgw_kv_secrets_user
+    time_sleep.wait_for_appgw_kv_rbac
   ]
+}
+
+# Self-heal: force Application Gateway to re-fetch the Key Vault certificate
+# on every apply, retrying with backoff instead of trusting a single fixed
+# sleep. No Azure-documented SLA exists for RBAC propagation, so a static
+# wait is always a guess - this keeps nudging the gateway until the cert is
+# actually bound (confirmed via provisioningState, not just a 200 from the
+# update call) or gives up loudly after a real timeout. This replaces the
+# manual request-ssl.ps1 "ssl-cert update" step that used to require a human
+# to notice the gateway was stuck and re-run it by hand.
+resource "null_resource" "refresh_ssl_cert" {
+  triggers = {
+    always_run = timestamp()
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      set -uo pipefail
+      RG="${var.resource_group_name}"
+      GW="${azurerm_application_gateway.main.name}"
+      SECRET_ID="https://${var.key_vault_name}.vault.azure.net/secrets/clahan-ssl-cert"
+      ATTEMPTS=20
+      SLEEP_SECS=15
+
+      for i in $(seq 1 $ATTEMPTS); do
+        if az network application-gateway ssl-cert update \
+            -g "$RG" --gateway-name "$GW" -n clahan-ssl-cert \
+            --key-vault-secret-id "$SECRET_ID" >/tmp/sslcert_update_$$.log 2>&1; then
+          STATE=$(az network application-gateway show -g "$RG" -n "$GW" --query "provisioningState" -o tsv 2>/dev/null || echo "")
+          if [ "$STATE" == "Succeeded" ]; then
+            echo "SSL certificate bound successfully on attempt $i/$ATTEMPTS"
+            exit 0
+          fi
+          echo "Attempt $i/$ATTEMPTS: update accepted but provisioningState=$STATE, retrying in $${SLEEP_SECS}s..."
+        else
+          echo "Attempt $i/$ATTEMPTS: ssl-cert update command failed, retrying in $${SLEEP_SECS}s..."
+          cat /tmp/sslcert_update_$$.log
+        fi
+        sleep $SLEEP_SECS
+      done
+
+      echo "ERROR: SSL certificate still not bound after $((ATTEMPTS * SLEEP_SECS))s."
+      echo "This has exceeded the typical Azure AD RBAC propagation window - it is"
+      echo "likely a real misconfiguration (role scope/principal, Key Vault firewall),"
+      echo "not a propagation delay. Check appgw_kv_secrets_user manually."
+      exit 1
+    EOT
+  }
+
+  depends_on = [azurerm_application_gateway.main]
 }

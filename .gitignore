@@ -6,6 +6,9 @@
 .terraform.lock.hcl
 *.tfplan
 tfplan
+# State/plan dumps exported by hand don't match *.tfstate* - block them explicitly
+state.json
+plan_output.txt
 
 # Bootstrap output
 .bootstrap-output.txt

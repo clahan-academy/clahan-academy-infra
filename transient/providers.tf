@@ -30,6 +30,10 @@ terraform {
       source  = "hashicorp/http"
       version = "~> 3.0"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
   }
 }
 
@@ -56,3 +60,4 @@ provider "azuread" {
 provider "random" {}
 provider "time" {}
 provider "azapi" {}
+provider "null" {}
