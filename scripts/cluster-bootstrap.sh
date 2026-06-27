@@ -139,6 +139,8 @@ spec:
   namespaceResourceWhitelist:
     - group: apps
       kind: Deployment
+    - group: apps
+      kind: DaemonSet
     - group: ""
       kind: Service
     - group: ""
