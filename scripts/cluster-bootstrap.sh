@@ -225,6 +225,16 @@ spec:
       name: clahan-gateway
       jsonPointers:
         - /spec/infrastructure
+    # Same controller-strips-the-field-after-admission pattern, this time on
+    # HTTPRoute: confirmed via last-applied-configuration vs live spec that
+    # kgateway drops rules[].timeouts after processing it. jqPathExpressions
+    # (not a hardcoded jsonPointers array index) so this doesn't silently
+    # point at the wrong rule if rules are ever reordered or added to.
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: clahan-routes
+      jqPathExpressions:
+        - '.spec.rules[].timeouts'
 EOF
 success "AppProject + Application applied"
 
