@@ -127,7 +127,7 @@ resource "azurerm_application_gateway" "main" {
     # This is one global backend setting for all traffic, but a higher
     # ceiling doesn't slow down fast endpoints - it's just the max AppGW
     # will wait before giving up.
-    request_timeout       = 180
+    request_timeout       = 300
     probe_name            = "appgw-health-probe"
   }
 
