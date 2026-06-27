@@ -159,6 +159,8 @@ spec:
       kind: Gateway
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: ReferenceGrant
     - group: gateway.kgateway.dev
       kind: GatewayParameters
     - group: batch
