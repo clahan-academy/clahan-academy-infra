@@ -211,6 +211,18 @@ spec:
     automated:
       prune: true
       selfHeal: true
+  # kgateway's controller strips spec.infrastructure.parametersRef from the
+  # live Gateway object after resolving it (confirmed: present in
+  # last-applied-configuration, absent from live spec). Argo would
+  # otherwise flag this as permanent drift on every single sync cycle since
+  # it gets removed again right after each apply - this isn't something to
+  # "fix" in the manifest, the controller legitimately owns it post-admission.
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: clahan-gateway
+      jsonPointers:
+        - /spec/infrastructure
 EOF
 success "AppProject + Application applied"
 
