@@ -132,6 +132,10 @@ spec:
       kind: ClusterIssuer
     - group: secrets-store.csi.x-k8s.io
       kind: SecretProviderClass
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
   namespaceResourceWhitelist:
     - group: apps
       kind: Deployment
