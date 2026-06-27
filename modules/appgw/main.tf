@@ -122,7 +122,12 @@ resource "azurerm_application_gateway" "main" {
     cookie_based_affinity = "Disabled"
     port                  = 80
     protocol              = "Http"
-    request_timeout       = 60
+    # Raised from 60s: the exam-service AI generation endpoints (Ollama LLM
+    # inference) routinely exceeded 60s, producing 504 Gateway Timeout.
+    # This is one global backend setting for all traffic, but a higher
+    # ceiling doesn't slow down fast endpoints - it's just the max AppGW
+    # will wait before giving up.
+    request_timeout       = 180
     probe_name            = "appgw-health-probe"
   }
 
