@@ -1,5 +1,5 @@
 # .github/workflows/terraform-apply.yml
-name: "IaC — Terraform Plan & Apply (Layered)"
+name: "IaC — Terraform Plan & Apply "
 
 on:
   push:
@@ -56,7 +56,7 @@ env:
 
 jobs:
   setup:
-    name: "⚙️ Setup"
+    name: "Setup"
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.env.outputs.environment }}
@@ -76,10 +76,10 @@ jobs:
             fi
           fi
           echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "🌍 Environment: $ENV"
+          echo "Environment: $ENV"
 
   terraform-validate:
-    name: "✅ Validate"
+    name: "Validate"
     runs-on: ubuntu-latest
     needs: setup
     
@@ -116,7 +116,7 @@ jobs:
           terraform validate
 
   terraform-plan:
-    name: "📋 Plan (${{ needs.setup.outputs.environment }})"
+    name: "Plan (${{ needs.setup.outputs.environment }})"
     runs-on: ubuntu-latest
     needs: [setup, terraform-validate]
     
@@ -197,14 +197,14 @@ jobs:
 
           # Run the plans
           if [ "${{ github.event.inputs.action }}" != "destroy" ]; then
-            echo "📋 Planning Persistent Layer..."
+            echo "Planning Persistent Layer..."
             cd persistent
             terraform init -reconfigure -backend-config="key=persistent-${{ needs.setup.outputs.environment }}.tfstate"
             terraform plan -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars -out=tfplan
             cd ..
           fi
 
-          echo "📋 Planning Transient Layer..."
+          echo "Planning Transient Layer..."
           cd transient
           terraform init -reconfigure -backend-config="key=transient-${{ needs.setup.outputs.environment }}.tfstate"
           if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
@@ -214,7 +214,7 @@ jobs:
           fi
 
   terraform-apply:
-    name: "🚀 Apply (${{ needs.setup.outputs.environment }})"
+    name: "Apply (${{ needs.setup.outputs.environment }})"
     runs-on: ubuntu-latest
     needs: [setup, terraform-plan]
     if: |
@@ -298,12 +298,12 @@ jobs:
           fi
 
           if [ "${{ github.event.inputs.action }}" == "destroy" ]; then
-            echo "🔥 DESTROY ACTION TRIGGERED: Deleting Transient Layer ONLY..."
+            echo "DESTROY ACTION TRIGGERED: Deleting Transient Layer ONLY..."
             cd transient
             terraform init -reconfigure -backend-config="key=transient-${{ needs.setup.outputs.environment }}.tfstate"
             terraform destroy -auto-approve -var-file=../environments/${{ needs.setup.outputs.environment }}.tfvars
           else
-            echo "🚀 APPLY ACTION TRIGGERED: Deploying Layered Infrastructure..."
+            echo "APPLY ACTION TRIGGERED: Deploying Layered Infrastructure..."
             
             # 1. Apply Persistent Layer
             cd persistent
